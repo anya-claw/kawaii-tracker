@@ -382,11 +382,22 @@
       if (t.is_daily) return 'daily';
       return 'normal';
     }
-    function getTagTypeBadge(t) {
+
+    function getTagBadge(t) {
       const type = getTagType(t);
-      if (type === 'weekly') return '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-500 font-medium">weekly ' + t.weekly_target + 'x</span>';
-      if (type === 'daily') return '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-500 font-medium">daily' + (t.daily_target > 1 ? ' ' + t.daily_target + 'x' : '') + '</span>';
-      return '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-400 font-medium">normal</span>';
+      if (type === 'weekly') return '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-500 font-medium">weekly</span>';
+      if (type === 'daily') return '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-500 font-medium">daily</span>';
+      return '';
+    }
+
+    function getTargetDisplay(t) {
+      if (t.weekly_target) {
+        return '<span class="font-semibold text-gray-800 dark:text-gray-200">' + t.weekly_target + '</span><span class="text-gray-300 dark:text-gray-600">/week</span>';
+      }
+      if (t.is_daily && t.daily_target) {
+        return '<span class="font-semibold text-gray-800 dark:text-gray-200">' + t.daily_target + '</span><span class="text-gray-300 dark:text-gray-600">/day</span>';
+      }
+      return '<span class="text-gray-300 dark:text-gray-600">—</span>';
     }
 
     async function renderTags() {
@@ -427,7 +438,8 @@
             <tr>
               <th class="text-left px-5 py-3 font-medium">Name</th>
               <th class="text-left px-5 py-3 font-medium">Description</th>
-              <th class="text-left px-5 py-3 font-medium">Type</th>
+              <th class="text-left px-5 py-3 font-medium">Tags</th>
+              <th class="text-left px-5 py-3 font-medium">Target</th>
               <th class="text-left px-5 py-3 font-medium">Created</th>
             </tr>
           </thead>
@@ -442,7 +454,8 @@
               </span>
             </td>
             <td class="px-5 py-3 text-gray-600 dark:text-gray-400">${t.description || '—'}</td>
-            <td class="px-5 py-3">${getTagTypeBadge(t)}</td>
+            <td class="px-5 py-3">${getTagBadge(t)}</td>
+            <td class="px-5 py-3 text-sm">${getTargetDisplay(t)}</td>
             <td class="px-5 py-3 text-gray-400 dark:text-gray-500 text-xs">${new Date(t.created_at).toLocaleDateString('zh-CN')}</td>
           </tr>`;
       }
@@ -458,7 +471,10 @@
               <span class="inline-flex items-center gap-1.5 font-semibold text-sm">
                 <i class="ri-hashtag text-brand-400 text-xs"></i> ${t.tag}
               </span>
-              ${getTagTypeBadge(t)}
+              <div class="flex items-center gap-2">
+                ${getTagBadge(t)}
+                <span class="text-xs">${getTargetDisplay(t)}</span>
+              </div>
             </div>
             <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">${t.description || '—'}</p>
             <span class="text-xs text-gray-400">${new Date(t.created_at).toLocaleDateString('zh-CN')}</span>
