@@ -1,6 +1,8 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
+import fastifyCookie from '@fastify/cookie';
+import crypto from 'crypto';
 import path from 'path';
 import { tagService } from '../service/tag.service';
 import { eventService } from '../service/event.service';
@@ -9,31 +11,39 @@ import { tagRepo } from '../repo/tag.repo';
 
 const app = Fastify({ logger: false });
 const PORT = Number(process.env.WEB_PORT) || 18791;
-const AUTH_USER = process.env.WEB_USER || 'KumaKorin';
-const AUTH_PASS = process.env.WEB_PASS || 'Aaa123321.@';
+const AUTH_TOKEN = process.env.WEB_TOKEN || 'e6fe5bd0c1443495071684f73cafb8b05a8405aa9ac9def9ee60fff3852c62e7';
+const COOKIE_NAME = 'kt_session';
+const COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30 days
+
+/** Timing-safe token comparison */
+function verifyToken(input: string): boolean {
+  const inputBuf = Buffer.from(input, 'utf-8');
+  const expectedBuf = Buffer.from(AUTH_TOKEN, 'utf-8');
+  if (inputBuf.length !== expectedBuf.length) return false;
+  return crypto.timingSafeEqual(inputBuf, expectedBuf);
+}
 
 async function main() {
   await app.register(cors);
+  await app.register(fastifyCookie, {
+    secret: AUTH_TOKEN.slice(0, 32), // for signed cookies if needed
+  });
 
-  // Basic Auth — manual onRequest hook
+  // Auth middleware
   app.addHook('onRequest', async (req, reply) => {
-    const auth = req.headers.authorization;
-    if (!auth || !auth.startsWith('Basic ')) {
-      reply
-        .code(401)
-        .header('WWW-Authenticate', 'Basic realm="Kawaii Tracker"')
-        .send({ ok: false, error: 'Unauthorized' });
+    // Public routes: login page, login API
+    const url = req.url;
+    if (url === '/login.html' || url === '/api/login' || url === '/api/logout') {
       return;
     }
 
-    const decoded = Buffer.from(auth.slice(6), 'base64').toString('utf-8');
-    const [user, pass] = decoded.split(':');
-
-    if (user !== AUTH_USER || pass !== AUTH_PASS) {
-      reply
-        .code(401)
-        .header('WWW-Authenticate', 'Basic realm="Kawaii Tracker"')
-        .send({ ok: false, error: 'Invalid credentials' });
+    const token = req.cookies?.[COOKIE_NAME];
+    if (!token || !verifyToken(token)) {
+      if (url.startsWith('/api/')) {
+        reply.code(401).send({ ok: false, error: 'Unauthorized' });
+      } else {
+        reply.redirect('/login.html');
+      }
       return;
     }
   });
@@ -41,6 +51,28 @@ async function main() {
   await app.register(fastifyStatic, {
     root: path.join(__dirname, 'public'),
     prefix: '/',
+  });
+
+  // ==================== AUTH ====================
+
+  app.post('/api/login', async (req, reply) => {
+    const { token } = req.body as { token?: string };
+    if (!token || !verifyToken(token)) {
+      return reply.code(401).send({ ok: false, error: 'Invalid token' });
+    }
+
+    reply.setCookie(COOKIE_NAME, token, {
+      path: '/',
+      httpOnly: true,
+      sameSite: 'lax',
+      maxAge: COOKIE_MAX_AGE,
+    });
+    return { ok: true };
+  });
+
+  app.post('/api/logout', async (_req, reply) => {
+    reply.clearCookie(COOKIE_NAME, { path: '/' });
+    return { ok: true };
   });
 
   // ==================== TAGS ====================
