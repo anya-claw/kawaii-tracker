@@ -3,6 +3,7 @@ export interface Tag {
   tag: string;
   description: string | null;
   is_daily: number; // 0 or 1
+  daily_target: number | null; // null = not daily, N = N times per day
   weekly_target: number | null; // null = not weekly, N = N times per week
   created_at: string;
   updated_at: string;
@@ -25,12 +26,14 @@ export interface CreateTagDTO {
   tag: string;
   description?: string;
   is_daily?: boolean;
+  daily_target?: number; // e.g. 3 = 3 times per day
   weekly_target?: number; // e.g. 4 = 4 times per week
 }
 
 export interface UpdateTagDTO {
   description?: string;
   is_daily?: boolean;
+  daily_target?: number;
   weekly_target?: number;
 }
 

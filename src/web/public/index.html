@@ -156,9 +156,8 @@
       const { data } = await api('/api/dashboard');
       if (!data) return '<p class="text-red-500"><i class="ri-error-warning-line"></i> Failed to load dashboard</p>';
 
-      const dailyTags = data.filter(t => t.is_daily);
-      const weeklyTags = data.filter(t => t.weekly_target);
-      const otherTags = data.filter(t => !t.is_daily && !t.weekly_target);
+      const dailyTags = data.filter(t => t.type === 'daily');
+      const weeklyTags = data.filter(t => t.type === 'weekly');
 
       let html = '<div class="fade-in space-y-6">';
 
@@ -170,53 +169,41 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">`;
 
       for (const tag of dailyTags) {
-        const done = tag.today_completed;
+        const done = tag.today_done;
         const streak = tag.current_streak > 0;
+        const target = tag.daily_target || 1;
+        const showProgress = target > 1;
+        const pct = showProgress ? Math.min(100, Math.round((tag.today_completed / target) * 100)) : 0;
         html += `
           <div class="card-hover relative rounded-xl p-5 border ${done ? 'border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-950/20' : 'border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1c2333]'}">
             ${done ? '<div class="absolute top-3 right-3"><i class="ri-checkbox-circle-fill text-emerald-500 text-xl"></i></div>' : '<div class="absolute top-3 right-3"><i class="ri-checkbox-blank-circle-line text-gray-300 dark:text-gray-600 text-xl"></i></div>'}
             <div class="flex items-center gap-2.5 mb-2">
               <div class="w-8 h-8 rounded-lg ${done ? 'bg-emerald-100 dark:bg-emerald-900/40' : 'bg-gray-100 dark:bg-gray-800'} flex items-center justify-center">
-                <i class="ri-book-open-line ${done ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}"></i>
+                <i class="ri-repeat-line ${done ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}"></i>
               </div>
               <span class="font-semibold text-sm">${tag.tag}</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-500 font-medium">daily</span>
             </div>
             <p class="text-xs text-gray-500 dark:text-gray-400 mb-3 pl-[42px]">${tag.description || ''}</p>
+            ${showProgress ? `
+              <div class="pl-[42px] mb-2">
+                <div class="flex items-center justify-between mb-1">
+                  <span class="text-sm font-bold ${done ? 'text-emerald-500' : 'text-brand-500'}">${tag.today_completed}/${target}</span>
+                  <span class="text-xs text-gray-400">${pct}%</span>
+                </div>
+                <div class="w-full h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                  <div class="h-full rounded-full transition-all duration-500 ${done ? 'bg-emerald-400' : 'bg-gradient-to-r from-brand-400 to-brand-500'}" style="width:${pct}%"></div>
+                </div>
+              </div>
+            ` : ''}
             <div class="flex items-center gap-4 pl-[42px]">
               ${streak ? `<span class="flex items-center gap-1 text-xs font-medium text-amber-500 streak-glow"><i class="ri-fire-fill"></i> ${tag.current_streak}d</span>` : ''}
-              <span class="flex items-center gap-1 text-xs text-gray-400"><i class="ri-event-line"></i> ${tag.today_events}</span>
+              <span class="flex items-center gap-1 text-xs text-gray-400"><i class="ri-bar-chart-line"></i> ${tag.total_days}d</span>
             </div>
           </div>`;
       }
 
       html += '</div></div>';
-
-      // Non-daily tags
-      if (otherTags.length > 0) {
-        html += `<div class="bg-white dark:bg-[#161b22] rounded-2xl shadow-sm dark:shadow-none border border-gray-100 dark:border-gray-800 p-6">
-          <h2 class="flex items-center gap-2 text-base font-semibold mb-5">
-            <i class="ri-price-tag-3-line text-brand-500"></i> Tags
-          </h2>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">`;
-
-        for (const tag of otherTags) {
-          html += `
-            <div class="card-hover rounded-xl p-5 border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1c2333]">
-              <div class="flex items-center gap-2.5 mb-2">
-                <div class="w-8 h-8 rounded-lg bg-brand-50 dark:bg-brand-900/30 flex items-center justify-center">
-                  <i class="ri-hashtag text-brand-500"></i>
-                </div>
-                <span class="font-semibold text-sm">${tag.tag}</span>
-              </div>
-              <p class="text-xs text-gray-500 dark:text-gray-400 mb-3 pl-[42px]">${tag.description || ''}</p>
-              <div class="flex items-center gap-1 text-xs text-gray-400 pl-[42px]">
-                <i class="ri-bar-chart-line"></i> ${tag.total_days} days total
-              </div>
-            </div>`;
-        }
-
-        html += '</div></div>';
-      }
 
       // Weekly tags
       if (weeklyTags.length > 0) {
@@ -238,6 +225,7 @@
                   <i class="ri-calendar-check-line ${done ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}"></i>
                 </div>
                 <span class="font-semibold text-sm">${tag.tag}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-500 font-medium">weekly</span>
               </div>
               <p class="text-xs text-gray-500 dark:text-gray-400 mb-3 pl-[42px]">${tag.description || ''}</p>
               <div class="pl-[42px] mb-2">
@@ -251,7 +239,7 @@
               </div>
               <div class="flex items-center gap-4 pl-[42px]">
                 ${streak ? `<span class="flex items-center gap-1 text-xs font-medium text-amber-500 streak-glow"><i class="ri-fire-fill"></i> ${tag.current_streak}w</span>` : ''}
-                <span class="flex items-center gap-1 text-xs text-gray-400"><i class="ri-bar-chart-line"></i> ${tag.total_days} days total</span>
+                <span class="flex items-center gap-1 text-xs text-gray-400"><i class="ri-bar-chart-line"></i> ${tag.total_days}d</span>
               </div>
             </div>`;
         }
@@ -389,6 +377,18 @@
 
     // ==================== TAGS ====================
 
+    function getTagType(t) {
+      if (t.weekly_target) return 'weekly';
+      if (t.is_daily) return 'daily';
+      return 'normal';
+    }
+    function getTagTypeBadge(t) {
+      const type = getTagType(t);
+      if (type === 'weekly') return '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-500 font-medium">weekly ' + t.weekly_target + 'x</span>';
+      if (type === 'daily') return '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-500 font-medium">daily' + (t.daily_target > 1 ? ' ' + t.daily_target + 'x' : '') + '</span>';
+      return '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-400 font-medium">normal</span>';
+    }
+
     async function renderTags() {
       const { data: tags } = await api('/api/tags');
 
@@ -408,9 +408,12 @@
             <i class="ri-file-text-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
             <input id="new-tag-desc" placeholder="description" class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg pl-9 pr-3 py-2 bg-white dark:bg-[#1c2333] dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/40">
           </div>
-          <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer select-none">
-            <input id="new-tag-daily" type="checkbox" class="rounded"> <i class="ri-repeat-line"></i> Daily
-          </label>
+          <select id="new-tag-type" class="text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-[#1c2333] dark:text-gray-200">
+            <option value="normal">Normal</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+          </select>
+          <input id="new-tag-target" type="number" min="1" placeholder="target" class="w-20 text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-[#1c2333] dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/40">
           <button onclick="addTag()" class="flex items-center gap-1.5 bg-brand-500 text-white text-sm px-4 py-2 rounded-lg hover:bg-brand-600 transition shadow-sm shadow-brand-500/25">
             <i class="ri-add-line"></i> Add
           </button>
@@ -424,7 +427,7 @@
             <tr>
               <th class="text-left px-5 py-3 font-medium">Name</th>
               <th class="text-left px-5 py-3 font-medium">Description</th>
-              <th class="text-left px-5 py-3 font-medium">Daily</th>
+              <th class="text-left px-5 py-3 font-medium">Type</th>
               <th class="text-left px-5 py-3 font-medium">Created</th>
             </tr>
           </thead>
@@ -439,7 +442,7 @@
               </span>
             </td>
             <td class="px-5 py-3 text-gray-600 dark:text-gray-400">${t.description || '—'}</td>
-            <td class="px-5 py-3">${t.is_daily ? '<i class="ri-checkbox-circle-fill text-emerald-500"></i>' : '<i class="ri-close-circle-line text-gray-300 dark:text-gray-600"></i>'}</td>
+            <td class="px-5 py-3">${getTagTypeBadge(t)}</td>
             <td class="px-5 py-3 text-gray-400 dark:text-gray-500 text-xs">${new Date(t.created_at).toLocaleDateString('zh-CN')}</td>
           </tr>`;
       }
@@ -455,7 +458,7 @@
               <span class="inline-flex items-center gap-1.5 font-semibold text-sm">
                 <i class="ri-hashtag text-brand-400 text-xs"></i> ${t.tag}
               </span>
-              ${t.is_daily ? '<span class="text-xs bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full">Daily</span>' : ''}
+              ${getTagTypeBadge(t)}
             </div>
             <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">${t.description || '—'}</p>
             <span class="text-xs text-gray-400">${new Date(t.created_at).toLocaleDateString('zh-CN')}</span>
@@ -468,13 +471,19 @@
     async function addTag() {
       const name = document.getElementById('new-tag-name').value.trim();
       const desc = document.getElementById('new-tag-desc').value.trim();
-      const daily = document.getElementById('new-tag-daily').checked;
+      const type = document.getElementById('new-tag-type').value;
+      const target = parseInt(document.getElementById('new-tag-target').value) || undefined;
       if (!name) return alert('Tag name is required');
 
-      await api('/api/tags', {
-        method: 'POST',
-        body: { tag: name, description: desc || undefined, is_daily: daily },
-      });
+      const body = { tag: name, description: desc || undefined };
+      if (type === 'daily') {
+        body.is_daily = true;
+        body.daily_target = target || 1;
+      } else if (type === 'weekly') {
+        body.weekly_target = target || 4;
+      }
+
+      await api('/api/tags', { method: 'POST', body });
       render();
     }
 

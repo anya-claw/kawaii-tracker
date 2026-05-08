@@ -32,9 +32,10 @@ export class TagProcessor {
       }
       console.log('\n🌟 Active Tags:\n');
       tags.forEach((t) => {
-        const dailyStr = t.is_daily ? '[Daily]' : '';
-        const weeklyStr = t.weekly_target ? `[Weekly ${t.weekly_target}x]` : '';
-        console.log(`- ${t.tag} ${dailyStr}${weeklyStr} ${t.description ? `(${t.description})` : ''} (ID: ${t.id})`);
+        let typeStr = '';
+        if (t.weekly_target) typeStr = `[Weekly ${t.weekly_target}x]`;
+        else if (t.is_daily) typeStr = (t.daily_target ?? 1) > 1 ? `[Daily ${t.daily_target}x]` : '[Daily]';
+        console.log(`- ${t.tag} ${typeStr} ${t.description ? `(${t.description})` : ''} (ID: ${t.id})`);
       });
       console.log('');
     } catch (e: any) {

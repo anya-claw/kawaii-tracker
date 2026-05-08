@@ -201,7 +201,7 @@ async function main() {
           return {
             tag: tag.tag,
             description: tag.description,
-            is_daily: 0,
+            type: 'weekly' as const,
             weekly_target: tag.weekly_target,
             week_completed: completed,
             week_progress: `${completed}/${tag.weekly_target}`,
@@ -212,14 +212,17 @@ async function main() {
         }
 
         // Daily tag
+        const target = tag.daily_target || 1;
         const events = eventService.listEvents({ tag: tag.tag, range: 'today' });
         const completed = events.filter(e => e.completed === 1).length;
         return {
           tag: tag.tag,
           description: tag.description,
-          is_daily: tag.is_daily,
-          today_completed: completed > 0,
-          today_events: events.length,
+          type: 'daily' as const,
+          daily_target: target,
+          today_completed: completed,
+          today_progress: `${completed}/${target}`,
+          today_done: completed >= target,
           current_streak: stats[0]?.current_streak || 0,
           longest_streak: stats[0]?.longest_streak || 0,
           total_days: stats[0]?.total_checkin_days || 0,
