@@ -3,6 +3,7 @@ export interface Tag {
   tag: string;
   description: string | null;
   is_daily: number; // 0 or 1
+  weekly_target: number | null; // null = not weekly, N = N times per week
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -23,12 +24,14 @@ export interface Event {
 export interface CreateTagDTO {
   tag: string;
   description?: string;
-  is_daily?: boolean; // We'll convert boolean to 0/1 in repo
+  is_daily?: boolean;
+  weekly_target?: number; // e.g. 4 = 4 times per week
 }
 
 export interface UpdateTagDTO {
   description?: string;
   is_daily?: boolean;
+  weekly_target?: number;
 }
 
 export interface CreateEventDTO {

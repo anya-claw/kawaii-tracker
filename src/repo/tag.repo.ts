@@ -11,11 +11,11 @@ export class TagRepo {
     const isDailyInt = dto.is_daily ? 1 : 0;
     
     const stmt = db.prepare(`
-      INSERT INTO tags (tag, description, is_daily, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO tags (tag, description, is_daily, weekly_target, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
     `);
     
-    const info = stmt.run(dto.tag, dto.description || null, isDailyInt, now, now);
+    const info = stmt.run(dto.tag, dto.description || null, isDailyInt, dto.weekly_target || null, now, now);
     return this.findById(info.lastInsertRowid as number)!;
   }
 
@@ -40,6 +40,10 @@ export class TagRepo {
     return db.prepare('SELECT * FROM tags WHERE deleted_at IS NULL').all() as Tag[];
   }
 
+  findAllWeeklyActive(): Tag[] {
+    return db.prepare('SELECT * FROM tags WHERE weekly_target IS NOT NULL AND deleted_at IS NULL').all() as Tag[];
+  }
+
   /**
    * Returns all daily active tags.
    */
@@ -61,6 +65,10 @@ export class TagRepo {
     if (dto.is_daily !== undefined) {
       fields.push('is_daily = ?');
       values.push(dto.is_daily ? 1 : 0);
+    }
+    if (dto.weekly_target !== undefined) {
+      fields.push('weekly_target = ?');
+      values.push(dto.weekly_target);
     }
 
     if (fields.length === 0) return;

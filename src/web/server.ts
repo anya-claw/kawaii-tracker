@@ -192,10 +192,28 @@ async function main() {
       const tags = tagService.listTags();
 
       const dashboard = tags.map(tag => {
-        const events = eventService.listEvents({ tag: tag.tag, range: 'today' });
-        const completed = events.filter(e => e.completed === 1).length;
         const stats = statisticService.getStatistics({ tag: tag.tag });
 
+        // Weekly tag: show progress X/Y
+        if (tag.weekly_target) {
+          const events = eventService.listEvents({ tag: tag.tag, range: 'this_week' });
+          const completed = events.filter(e => e.completed === 1).length;
+          return {
+            tag: tag.tag,
+            description: tag.description,
+            is_daily: 0,
+            weekly_target: tag.weekly_target,
+            week_completed: completed,
+            week_progress: `${completed}/${tag.weekly_target}`,
+            current_streak: stats[0]?.current_streak || 0,
+            longest_streak: stats[0]?.longest_streak || 0,
+            total_days: stats[0]?.total_checkin_days || 0,
+          };
+        }
+
+        // Daily tag
+        const events = eventService.listEvents({ tag: tag.tag, range: 'today' });
+        const completed = events.filter(e => e.completed === 1).length;
         return {
           tag: tag.tag,
           description: tag.description,

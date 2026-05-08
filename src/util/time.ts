@@ -89,6 +89,15 @@ export function parseTimeString(timeStr?: string): string | undefined {
 }
 
 /**
+ * Returns the start of the current "business week" (Monday at REFRESH_TIME).
+ */
+export function getBusinessWeekStart(date: Date = new Date()): Date {
+  const bizDate = getBusinessDate(date);
+  const weekStart = startOfWeek(bizDate, { weekStartsOn: 1 }); // Monday
+  return addHours(weekStart, getOffsetHours());
+}
+
+/**
  * Parses a "range" string into since and until ISO strings based on business logic.
  */
 export function parseRange(range?: string): { since?: string; until?: string } {
@@ -115,9 +124,7 @@ export function parseRange(range?: string): { since?: string; until?: string } {
   }
 
   if (range === 'this_week') {
-    // date-fns startOfWeek default is Sunday, adjust if needed.
-    const weekStartBiz = startOfWeek(bizDate, { weekStartsOn: 1 }); // Monday
-    return { since: formatIso(addHours(weekStartBiz, getOffsetHours())) };
+    return { since: formatIso(getBusinessWeekStart()) };
   }
 
   if (range === 'this_month') {
