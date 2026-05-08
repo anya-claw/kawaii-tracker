@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🐾 Kawaii Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .tab-active { border-bottom: 2px solid #8b5cf6; color: #8b5cf6; font-weight: 600; }
+    .streak-glow { text-shadow: 0 0 8px rgba(251, 191, 36, 0.5); }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <div id="app" class="max-w-5xl mx-auto px-4 py-6">
+    <!-- Header -->
+    <header class="flex items-center justify-between mb-8">
+      <h1 class="text-2xl font-bold text-gray-800">🐾 Kawaii Tracker</h1>
+      <span id="clock" class="text-sm text-gray-500"></span>
+    </header>
+
+    <!-- Tabs -->
+    <nav class="flex gap-6 border-b border-gray-200 mb-6">
+      <button class="tab-btn pb-3 text-gray-500 hover:text-gray-700 transition" data-tab="dashboard">📊 Dashboard</button>
+      <button class="tab-btn pb-3 text-gray-500 hover:text-gray-700 transition" data-tab="events">📝 Events</button>
+      <button class="tab-btn pb-3 text-gray-500 hover:text-gray-700 transition" data-tab="tags">🏷️ Tags</button>
+      <button class="tab-btn pb-3 text-gray-500 hover:text-gray-700 transition" data-tab="stats">📈 Statistics</button>
+    </nav>
+
+    <!-- Content -->
+    <main id="content"></main>
+  </div>
+
+  <script>
+    const API = '';
+    let currentTab = 'dashboard';
+
+    // ==================== UTILS ====================
+
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('clock').textContent = now.toLocaleString('zh-CN', {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+      });
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    async function api(path, opts = {}) {
+      const res = await fetch(API + path, {
+        headers: { 'Content-Type': 'application/json' },
+        ...opts,
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+      });
+      return res.json();
+    }
+
+    function switchTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.toggle('tab-active', btn.dataset.tab === tab);
+      });
+      render();
+    }
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    });
+
+    // ==================== DASHBOARD ====================
+
+    async function renderDashboard() {
+      const { data } = await api('/api/dashboard');
+      if (!data) return '<p class="text-red-500">Failed to load dashboard</p>';
+
+      const dailyTags = data.filter(t => t.is_daily);
+      const otherTags = data.filter(t => !t.is_daily);
+
+      let html = '<div class="fade-in space-y-6">';
+
+      // Today's overview
+      html += `<div class="bg-white rounded-xl shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-800 mb-4">📅 Today's Overview</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">`;
+
+      for (const tag of dailyTags) {
+        const status = tag.today_completed ? '✅' : '⬜';
+        const streak = tag.current_streak > 0 ? `<span class="text-amber-500 streak-glow">🔥 ${tag.current_streak} day streak</span>` : '';
+        html += `
+          <div class="border rounded-lg p-4 ${tag.today_completed ? 'border-green-200 bg-green-50' : 'border-gray-200'}">
+            <div class="flex items-center justify-between mb-2">
+              <span class="font-medium text-gray-800">${status} ${tag.tag}</span>
+              <span class="text-sm text-gray-400">${tag.today_events} events</span>
+            </div>
+            <p class="text-sm text-gray-500">${tag.description || ''}</p>
+            <div class="mt-2 text-sm">${streak}</div>
+          </div>`;
+      }
+
+      html += '</div></div>';
+
+      // Non-daily tags
+      if (otherTags.length > 0) {
+        html += `<div class="bg-white rounded-xl shadow-sm p-6">
+          <h2 class="text-lg font-semibold text-gray-800 mb-4">🏷️ Tags</h2>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">`;
+
+        for (const tag of otherTags) {
+          html += `
+            <div class="border border-gray-200 rounded-lg p-4">
+              <div class="font-medium text-gray-800 mb-1">${tag.tag}</div>
+              <p class="text-sm text-gray-500">${tag.description || ''}</p>
+              <div class="mt-2 text-sm text-gray-400">📊 ${tag.total_days} days total</div>
+            </div>`;
+        }
+
+        html += '</div></div>';
+      }
+
+      html += '</div>';
+      return html;
+    }
+
+    // ==================== EVENTS ====================
+
+    let eventFilter = { range: 'today' };
+
+    async function renderEvents() {
+      const params = new URLSearchParams();
+      if (eventFilter.tag) params.set('tag', eventFilter.tag);
+      if (eventFilter.range) params.set('range', eventFilter.range);
+
+      const [eventsRes, tagsRes] = await Promise.all([
+        api(`/api/events?${params}`),
+        api('/api/tags'),
+      ]);
+
+      const events = eventsRes.data || [];
+      const tags = tagsRes.data || [];
+
+      let html = '<div class="fade-in space-y-4">';
+
+      // Filters
+      html += `<div class="bg-white rounded-xl shadow-sm p-4 flex flex-wrap gap-3 items-center">
+        <span class="text-sm font-medium text-gray-600">Filter:</span>
+        <select id="event-range" class="text-sm border rounded-lg px-3 py-1.5 bg-white">
+          <option value="today" ${eventFilter.range === 'today' ? 'selected' : ''}>Today</option>
+          <option value="yesterday" ${eventFilter.range === 'yesterday' ? 'selected' : ''}>Yesterday</option>
+          <option value="7d" ${eventFilter.range === '7d' ? 'selected' : ''}>Last 7 days</option>
+          <option value="30d" ${eventFilter.range === '30d' ? 'selected' : ''}>Last 30 days</option>
+          <option value="all" ${eventFilter.range === 'all' ? 'selected' : ''}>All</option>
+        </select>
+        <select id="event-tag" class="text-sm border rounded-lg px-3 py-1.5 bg-white">
+          <option value="">All tags</option>
+          ${tags.map(t => `<option value="${t.tag}" ${eventFilter.tag === t.tag ? 'selected' : ''}>${t.tag}</option>`).join('')}
+        </select>
+      </div>`;
+
+      // Events list
+      html += `<div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-gray-500">
+            <tr>
+              <th class="text-left px-4 py-3">ID</th>
+              <th class="text-left px-4 py-3">Tag</th>
+              <th class="text-left px-4 py-3">Details</th>
+              <th class="text-left px-4 py-3">Mood</th>
+              <th class="text-left px-4 py-3">Status</th>
+              <th class="text-left px-4 py-3">Time</th>
+              <th class="text-right px-4 py-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">`;
+
+      if (events.length === 0) {
+        html += `<tr><td colspan="7" class="text-center py-8 text-gray-400">No events found</td></tr>`;
+      }
+
+      for (const e of events) {
+        const status = e.completed ? '✅' : (e.daily_mark ? '⬜ placeholder' : '📝');
+        const time = new Date(e.created_at).toLocaleString('zh-CN');
+        html += `
+          <tr class="hover:bg-gray-50">
+            <td class="px-4 py-3 text-gray-400">#${e.id}</td>
+            <td class="px-4 py-3"><span class="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full text-xs font-medium">${e.tag_name}</span></td>
+            <td class="px-4 py-3 text-gray-700 max-w-xs truncate">${e.details || '-'}</td>
+            <td class="px-4 py-3">${e.mood || '-'}</td>
+            <td class="px-4 py-3">${status}</td>
+            <td class="px-4 py-3 text-gray-400 text-xs">${time}</td>
+            <td class="px-4 py-3 text-right">
+              <button onclick="deleteEvent(${e.id})" class="text-red-400 hover:text-red-600 text-xs">🗑️</button>
+            </td>
+          </tr>`;
+      }
+
+      html += '</tbody></table></div></div>';
+
+      // Attach filter events after render
+      setTimeout(() => {
+        document.getElementById('event-range')?.addEventListener('change', e => {
+          eventFilter.range = e.target.value;
+          render();
+        });
+        document.getElementById('event-tag')?.addEventListener('change', e => {
+          eventFilter.tag = e.target.value || undefined;
+          render();
+        });
+      }, 0);
+
+      return html;
+    }
+
+    async function deleteEvent(id) {
+      if (!confirm(`Delete event #${id}?`)) return;
+      await api(`/api/events/${id}`, { method: 'DELETE' });
+      render();
+    }
+
+    // ==================== TAGS ====================
+
+    async function renderTags() {
+      const { data: tags } = await api('/api/tags');
+
+      let html = '<div class="fade-in space-y-4">';
+
+      // Add tag form
+      html += `<div class="bg-white rounded-xl shadow-sm p-4">
+        <h3 class="font-medium text-gray-700 mb-3">➕ Add Tag</h3>
+        <div class="flex flex-wrap gap-3">
+          <input id="new-tag-name" placeholder="tag name" class="text-sm border rounded-lg px-3 py-1.5 flex-1 min-w-[120px]">
+          <input id="new-tag-desc" placeholder="description" class="text-sm border rounded-lg px-3 py-1.5 flex-1 min-w-[200px]">
+          <label class="flex items-center gap-2 text-sm text-gray-600">
+            <input id="new-tag-daily" type="checkbox" class="rounded"> Daily
+          </label>
+          <button onclick="addTag()" class="bg-purple-500 text-white text-sm px-4 py-1.5 rounded-lg hover:bg-purple-600 transition">Add</button>
+        </div>
+      </div>`;
+
+      // Tags list
+      html += `<div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-gray-500">
+            <tr>
+              <th class="text-left px-4 py-3">ID</th>
+              <th class="text-left px-4 py-3">Name</th>
+              <th class="text-left px-4 py-3">Description</th>
+              <th class="text-left px-4 py-3">Daily</th>
+              <th class="text-left px-4 py-3">Created</th>
+              <th class="text-right px-4 py-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">`;
+
+      for (const t of tags || []) {
+        html += `
+          <tr class="hover:bg-gray-50">
+            <td class="px-4 py-3 text-gray-400">#${t.id}</td>
+            <td class="px-4 py-3 font-medium text-gray-800">${t.tag}</td>
+            <td class="px-4 py-3 text-gray-600">${t.description || '-'}</td>
+            <td class="px-4 py-3">${t.is_daily ? '✅' : '❌'}</td>
+            <td class="px-4 py-3 text-gray-400 text-xs">${new Date(t.created_at).toLocaleDateString('zh-CN')}</td>
+            <td class="px-4 py-3 text-right">
+              <button onclick="deleteTag('${t.tag}')" class="text-red-400 hover:text-red-600 text-xs">🗑️</button>
+            </td>
+          </tr>`;
+      }
+
+      html += '</tbody></table></div></div>';
+      return html;
+    }
+
+    async function addTag() {
+      const name = document.getElementById('new-tag-name').value.trim();
+      const desc = document.getElementById('new-tag-desc').value.trim();
+      const daily = document.getElementById('new-tag-daily').checked;
+      if (!name) return alert('Tag name is required');
+
+      await api('/api/tags', {
+        method: 'POST',
+        body: { tag: name, description: desc || undefined, is_daily: daily },
+      });
+      render();
+    }
+
+    async function deleteTag(name) {
+      if (!confirm(`Delete tag "${name}"?`)) return;
+      await api(`/api/tags/${name}`, { method: 'DELETE' });
+      render();
+    }
+
+    // ==================== STATISTICS ====================
+
+    async function renderStats() {
+      const { data: stats } = await api('/api/statistics');
+
+      let html = '<div class="fade-in">';
+      html += `<div class="bg-white rounded-xl shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-800 mb-4">📈 Statistics</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">`;
+
+      for (const s of stats || []) {
+        html += `
+          <div class="border border-gray-200 rounded-lg p-4">
+            <div class="font-medium text-gray-800 mb-3">${s.tag}</div>
+            <div class="space-y-2 text-sm">
+              <div class="flex justify-between">
+                <span class="text-gray-500">🔥 Current Streak</span>
+                <span class="font-semibold text-amber-500 streak-glow">${s.current_streak} days</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-500">🏆 Longest Streak</span>
+                <span class="font-semibold">${s.longest_streak} days</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-500">📊 Total Days</span>
+                <span class="font-semibold">${s.total_checkin_days} days</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-500">📅 First Check-in</span>
+                <span class="text-gray-400 text-xs">${s.first_checkin_at ? new Date(s.first_checkin_at).toLocaleDateString('zh-CN') : 'Never'}</span>
+              </div>
+            </div>
+          </div>`;
+      }
+
+      html += '</div></div></div>';
+      return html;
+    }
+
+    // ==================== RENDER ====================
+
+    async function render() {
+      const content = document.getElementById('content');
+      switch (currentTab) {
+        case 'dashboard': content.innerHTML = await renderDashboard(); break;
+        case 'events': content.innerHTML = await renderEvents(); break;
+        case 'tags': content.innerHTML = await renderTags(); break;
+        case 'stats': content.innerHTML = await renderStats(); break;
+      }
+    }
+
+    // Init
+    switchTab('dashboard');
+  </script>
+</body>
+</html>
