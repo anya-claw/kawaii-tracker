@@ -256,24 +256,22 @@
         </select>
       </div>`;
 
-      // Events table
-      html += `<div class="bg-white dark:bg-[#161b22] rounded-2xl shadow-sm dark:shadow-none border border-gray-100 dark:border-gray-800 overflow-hidden">
+      // Desktop table
+      html += `<div class="bg-white dark:bg-[#161b22] rounded-2xl shadow-sm dark:shadow-none border border-gray-100 dark:border-gray-800 overflow-hidden hidden md:block">
         <table class="w-full text-sm">
           <thead class="bg-gray-50 dark:bg-[#0d1117] text-gray-500 dark:text-gray-400">
             <tr>
-              <th class="text-left px-5 py-3 font-medium">ID</th>
               <th class="text-left px-5 py-3 font-medium">Tag</th>
               <th class="text-left px-5 py-3 font-medium">Details</th>
               <th class="text-left px-5 py-3 font-medium">Mood</th>
               <th class="text-left px-5 py-3 font-medium">Status</th>
               <th class="text-left px-5 py-3 font-medium">Time</th>
-              <th class="text-right px-5 py-3 font-medium">Actions</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 dark:divide-gray-800">`;
 
       if (events.length === 0) {
-        html += `<tr><td colspan="7" class="text-center py-12 text-gray-400">
+        html += `<tr><td colspan="5" class="text-center py-12 text-gray-400">
           <i class="ri-inbox-line text-3xl mb-2 block"></i>
           <span class="text-sm">No events found</span>
         </td></tr>`;
@@ -288,21 +286,48 @@
         const time = new Date(e.created_at).toLocaleString('zh-CN');
         html += `
           <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition">
-            <td class="px-5 py-3 text-gray-400 text-xs font-mono">#${e.id}</td>
             <td class="px-5 py-3"><span class="inline-flex items-center gap-1 bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 px-2.5 py-0.5 rounded-full text-xs font-medium"><i class="ri-hashtag text-[10px]"></i> ${e.tag_name}</span></td>
             <td class="px-5 py-3 text-gray-600 dark:text-gray-300 max-w-xs truncate">${e.details || '<span class="text-gray-300 dark:text-gray-600">—</span>'}</td>
             <td class="px-5 py-3 text-lg">${e.mood || ''}</td>
             <td class="px-5 py-3"><i class="${statusIcon} text-lg"></i></td>
             <td class="px-5 py-3 text-gray-400 dark:text-gray-500 text-xs">${time}</td>
-            <td class="px-5 py-3 text-right">
-              <button onclick="deleteEvent(${e.id})" class="icon-btn p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 transition">
-                <i class="ri-delete-bin-line"></i>
-              </button>
-            </td>
           </tr>`;
       }
 
-      html += '</tbody></table></div></div>';
+      html += '</tbody></table></div>';
+
+      // Mobile cards
+      html += `<div class="md:hidden space-y-2">`;
+
+      if (events.length === 0) {
+        html += `<div class="text-center py-12 text-gray-400">
+          <i class="ri-inbox-line text-3xl mb-2 block"></i>
+          <span class="text-sm">No events found</span>
+        </div>`;
+      }
+
+      for (const e of events) {
+        const done = e.completed;
+        const placeholder = e.daily_mark && !done;
+        const statusIcon = done ? 'ri-checkbox-circle-fill text-emerald-500' :
+                          placeholder ? 'ri-checkbox-blank-circle-line text-gray-300 dark:text-gray-600' :
+                          'ri-edit-line text-blue-400';
+        const time = new Date(e.created_at).toLocaleString('zh-CN');
+        html += `
+          <div class="bg-white dark:bg-[#161b22] rounded-xl border border-gray-100 dark:border-gray-800 p-4">
+            <div class="flex items-center justify-between mb-2">
+              <span class="inline-flex items-center gap-1 bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 px-2.5 py-0.5 rounded-full text-xs font-medium"><i class="ri-hashtag text-[10px]"></i> ${e.tag_name}</span>
+              <i class="${statusIcon} text-lg"></i>
+            </div>
+            ${e.details ? `<p class="text-sm text-gray-700 dark:text-gray-300 mb-2">${e.details}</p>` : ''}
+            <div class="flex items-center justify-between text-xs text-gray-400">
+              <span>${e.mood || ''}</span>
+              <span>${time}</span>
+            </div>
+          </div>`;
+      }
+
+      html += '</div></div>';
 
       setTimeout(() => {
         document.getElementById('event-range')?.addEventListener('change', e => {
@@ -318,11 +343,7 @@
       return html;
     }
 
-    async function deleteEvent(id) {
-      if (!confirm(`Delete event #${id}?`)) return;
-      await api(`/api/events/${id}`, { method: 'DELETE' });
-      render();
-    }
+
 
     // ==================== TAGS ====================
 
@@ -354,17 +375,15 @@
         </div>
       </div>`;
 
-      // Tags list
-      html += `<div class="bg-white dark:bg-[#161b22] rounded-2xl shadow-sm dark:shadow-none border border-gray-100 dark:border-gray-800 overflow-hidden">
+      // Desktop table
+      html += `<div class="bg-white dark:bg-[#161b22] rounded-2xl shadow-sm dark:shadow-none border border-gray-100 dark:border-gray-800 overflow-hidden hidden md:block">
         <table class="w-full text-sm">
           <thead class="bg-gray-50 dark:bg-[#0d1117] text-gray-500 dark:text-gray-400">
             <tr>
-              <th class="text-left px-5 py-3 font-medium">ID</th>
               <th class="text-left px-5 py-3 font-medium">Name</th>
               <th class="text-left px-5 py-3 font-medium">Description</th>
               <th class="text-left px-5 py-3 font-medium">Daily</th>
               <th class="text-left px-5 py-3 font-medium">Created</th>
-              <th class="text-right px-5 py-3 font-medium">Actions</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 dark:divide-gray-800">`;
@@ -372,7 +391,6 @@
       for (const t of tags || []) {
         html += `
           <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition">
-            <td class="px-5 py-3 text-gray-400 text-xs font-mono">#${t.id}</td>
             <td class="px-5 py-3">
               <span class="inline-flex items-center gap-1.5 font-medium">
                 <i class="ri-hashtag text-brand-400 text-xs"></i> ${t.tag}
@@ -381,15 +399,27 @@
             <td class="px-5 py-3 text-gray-600 dark:text-gray-400">${t.description || '—'}</td>
             <td class="px-5 py-3">${t.is_daily ? '<i class="ri-checkbox-circle-fill text-emerald-500"></i>' : '<i class="ri-close-circle-line text-gray-300 dark:text-gray-600"></i>'}</td>
             <td class="px-5 py-3 text-gray-400 dark:text-gray-500 text-xs">${new Date(t.created_at).toLocaleDateString('zh-CN')}</td>
-            <td class="px-5 py-3 text-right">
-              <button onclick="deleteTag('${t.tag}')" class="icon-btn p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 transition">
-                <i class="ri-delete-bin-line"></i>
-              </button>
-            </td>
           </tr>`;
       }
 
-      html += '</tbody></table></div></div>';
+      html += '</tbody></table></div>';
+
+      // Mobile cards
+      html += `<div class="md:hidden space-y-2">`;
+      for (const t of tags || []) {
+        html += `
+          <div class="bg-white dark:bg-[#161b22] rounded-xl border border-gray-100 dark:border-gray-800 p-4">
+            <div class="flex items-center justify-between mb-1">
+              <span class="inline-flex items-center gap-1.5 font-semibold text-sm">
+                <i class="ri-hashtag text-brand-400 text-xs"></i> ${t.tag}
+              </span>
+              ${t.is_daily ? '<span class="text-xs bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full">Daily</span>' : ''}
+            </div>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">${t.description || '—'}</p>
+            <span class="text-xs text-gray-400">${new Date(t.created_at).toLocaleDateString('zh-CN')}</span>
+          </div>`;
+      }
+      html += '</div></div>';
       return html;
     }
 
@@ -406,11 +436,7 @@
       render();
     }
 
-    async function deleteTag(name) {
-      if (!confirm(`Delete tag "${name}"?`)) return;
-      await api(`/api/tags/${name}`, { method: 'DELETE' });
-      render();
-    }
+
 
     // ==================== STATISTICS ====================
 
