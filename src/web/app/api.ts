@@ -1,10 +1,15 @@
 const API_BASE = '';
 
 async function request(path: string, options?: RequestInit) {
+  const headers: HeadersInit = {};
+  if (options?.body) {
+    headers['Content-Type'] = 'application/json';
+  }
+  
   const res = await fetch(`${API_BASE}${path}`, {
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: { ...headers, ...options?.headers },
   });
   const data = await res.json();
   if (!data.ok) throw new Error(data.error || 'Request failed');
