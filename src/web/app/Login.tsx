@@ -24,7 +24,7 @@ export function Login({ onLogin }: { onLogin: () => void }) {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-[#1a1a2e] border border-gray-200 dark:border-gray-800 rounded-2xl p-8 w-full max-w-sm shadow-xl dark:shadow-none">
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl p-8 w-full max-w-sm shadow-xl dark:shadow-none">
         <div className="flex flex-col items-center mb-8">
           <div className="w-16 h-16 bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 rounded-full flex items-center justify-center mb-4">
             <PawPrint size={32} />
@@ -38,7 +38,7 @@ export function Login({ onLogin }: { onLogin: () => void }) {
           <div>
             <input
               type="password"
-              className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all"
+              className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all"
               placeholder="Enter your secret token..."
               value={token}
               onChange={e => setToken(e.target.value)}
