@@ -2,27 +2,21 @@ import { eventService } from '../service/event.service';
 import { CreateEventDTO, UpdateEventDTO, QueryDTO } from '../types';
 
 export class EventProcessor {
-  /**
-   * Processes adding an event.
-   */
   processAddEvent(jsonStr: string): void {
     try {
       const dto = JSON.parse(jsonStr) as CreateEventDTO;
-      if (!dto.tag) {
-        console.error('Error: "tag" is required.');
+      if (!dto.task) {
+        console.error('Error: "task" is required.');
         process.exit(1);
       }
       const event = eventService.addEvent(dto);
-      console.log(`✅ Event for '${dto.tag}' added successfully (ID: ${event.id}).`);
+      console.log(`✅ Event for '${dto.task}' added successfully (ID: ${event.id}).`);
     } catch (e: any) {
       console.error(`❌ Failed to add event: ${e.message}`);
       process.exit(1);
     }
   }
 
-  /**
-   * Processes listing events based on a query.
-   */
   processListEvents(jsonStr: string): void {
     try {
       const parsed = JSON.parse(jsonStr);
@@ -36,11 +30,13 @@ export class EventProcessor {
       console.log(`\n📅 Events (Total: ${events.length}):\n`);
       events.forEach((e: any) => {
         const checkStr = e.completed ? '✅' : '⏳';
-        const dailyStr = e.daily_mark ? '[Daily]' : '';
-        const tagStr = e.tag_name ? `[${e.tag_name}]` : '';
+        const dailyStr = e.daily_mark ? '[Recurring]' : '';
+        const taskStr = e.task_name ? `[${e.task_name}]` : '';
+        const parentStr = e.parent_id ? `[Sub→${e.parent_id}]` : '';
+        const progressStr = e.progress != null ? `Progress: ${e.progress}` : '';
         const createdAt = new Date(e.created_at).toLocaleString();
         const updatedAt = e.updated_at !== e.created_at ? ` | Updated: ${new Date(e.updated_at).toLocaleString()}` : '';
-        console.log(`- ID: ${e.id} | ${checkStr} ${tagStr} ${dailyStr} | Mood: ${e.mood || 'N/A'} | Details: ${e.details || 'N/A'} | Created: ${createdAt}${updatedAt}`);
+        console.log(`- ID: ${e.id} | ${checkStr} ${taskStr} ${dailyStr} ${parentStr} ${progressStr} | Mood: ${e.mood || 'N/A'} | Details: ${e.details || 'N/A'} | Created: ${createdAt}${updatedAt}`);
       });
       console.log('');
     } catch (e: any) {
@@ -49,9 +45,6 @@ export class EventProcessor {
     }
   }
 
-  /**
-   * Processes updating an event.
-   */
   processUpdateEvent(jsonStr: string): void {
     try {
       const parsed = JSON.parse(jsonStr);
@@ -67,9 +60,6 @@ export class EventProcessor {
     }
   }
 
-  /**
-   * Processes deleting events.
-   */
   processDelEvent(jsonStr: string): void {
     try {
       const parsed = JSON.parse(jsonStr);

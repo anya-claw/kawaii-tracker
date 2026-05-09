@@ -21,13 +21,13 @@ export const db = new Database(dbPath);
 // Enable WAL mode for better concurrency
 db.pragma('journal_mode = WAL');
 
-// Initialize tables based on CONTRACTS.md
+// Initialize tables
 db.exec(`
-  CREATE TABLE IF NOT EXISTS tags (
+  CREATE TABLE IF NOT EXISTS tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    tag TEXT UNIQUE NOT NULL,
+    task TEXT UNIQUE NOT NULL,
     description TEXT,
-    is_daily INTEGER NOT NULL DEFAULT 0,
+    recurring_option TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT
@@ -35,14 +35,41 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    tag_id INTEGER NOT NULL,
+    task_id INTEGER NOT NULL,
+    parent_id INTEGER REFERENCES events(id),
     details TEXT,
     mood TEXT,
     completed INTEGER NOT NULL DEFAULT 0,
     daily_mark INTEGER NOT NULL DEFAULT 0,
+    progress INTEGER DEFAULT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT,
-    FOREIGN KEY(tag_id) REFERENCES tags(id)
+    FOREIGN KEY(task_id) REFERENCES tasks(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS todo_groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT,
+    position INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS todo_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    completed_at TEXT,
+    parent_id INTEGER REFERENCES todo_items(id),
+    group_id INTEGER NOT NULL REFERENCES todo_groups(id),
+    recurring_option TEXT,
+    started_at TEXT,
+    end_at TEXT,
+    position INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT
   );
 `);
