@@ -1,32 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from './api';
-
-interface TodoGroup {
-  id: number;
-  name: string;
-  description: string | null;
-  position: number;
-}
-
-interface TodoItem {
-  id: number;
-  name: string;
-  completed_at: string | null;
-  parent_id: number | null;
-  group_id: number;
-  started_at: string | null;
-  end_at: string | null;
-  position: number;
-}
-
-interface BoardColumn {
-  group: TodoGroup;
-  items: TodoItem[];
-  completed_items: TodoItem[];
-}
+import { Plus, X, CheckSquare, Square, Clock, ListTodo, GripVertical, CheckCircle2, ChevronRight, CornerDownRight } from 'lucide-react';
 
 export function TodoBoard() {
-  const [board, setBoard] = useState<BoardColumn[]>([]);
+  const [board, setBoard] = useState<any[]>([]);
   const [showAddGroup, setShowAddGroup] = useState(false);
   const [showAddItem, setShowAddItem] = useState<number | null>(null);
   const [showCompleted, setShowCompleted] = useState<number | null>(null);
@@ -67,7 +44,7 @@ export function TodoBoard() {
         name: newItemName,
         group_id: groupId,
         parent_id: newItemParent,
-        end_at: newItemEndAt || undefined,
+        end_at: newItemEndAt ? new Date(newItemEndAt).toISOString() : undefined,
       });
       setNewItemName('');
       setNewItemParent(undefined);
@@ -79,7 +56,7 @@ export function TodoBoard() {
     }
   };
 
-  const handleToggleComplete = async (item: TodoItem) => {
+  const handleToggleComplete = async (item: any) => {
     try {
       if (item.completed_at) {
         await api.uncompleteTodoItem(item.id);
@@ -93,7 +70,7 @@ export function TodoBoard() {
   };
 
   const handleDeleteItem = async (id: number) => {
-    if (!confirm('Delete this todo?')) return;
+    if (!confirm('Delete this task?')) return;
     try {
       await api.deleteTodoItem(id);
       loadBoard();
@@ -103,7 +80,7 @@ export function TodoBoard() {
   };
 
   const handleDeleteGroup = async (id: number) => {
-    if (!confirm('Delete this group and all its items?')) return;
+    if (!confirm('Delete this group and all its tasks?')) return;
     try {
       await api.deleteTodoGroup(id);
       loadBoard();
@@ -112,173 +89,237 @@ export function TodoBoard() {
     }
   };
 
-  const renderItems = (items: TodoItem[], isSub = false) => {
+  const renderItems = (items: any[], isSub = false) => {
     return items.map(item => (
-      <div key={item.id} className={isSub ? 'sub-todo' : ''}>
-        <div
-          className={`todo-item ${item.completed_at ? 'completed' : ''}`}
-          onClick={() => handleToggleComplete(item)}
-        >
-          <div className="todo-item-header">
-            <div className={`todo-checkbox ${item.completed_at ? 'checked' : ''}`} />
-            <span className={`todo-name ${item.completed_at ? 'completed' : ''}`}>
+      <div 
+        key={item.id} 
+        className={`group relative bg-white dark:bg-[#1a1a2e] border rounded-xl mb-3 transition-all duration-200
+          ${item.completed_at 
+            ? 'border-gray-100 dark:border-gray-800/60 opacity-60 hover:opacity-100' 
+            : 'border-gray-200 dark:border-gray-800 hover:border-brand-300 dark:hover:border-brand-700/50 hover:shadow-sm'
+          }
+          ${isSub ? 'ml-6 relative before:content-[""] before:absolute before:-left-4 before:top-6 before:w-3 before:h-px before:bg-gray-300 dark:before:bg-gray-700' : ''}
+        `}
+      >
+        <div className="p-4 flex items-start gap-3">
+          <button 
+            onClick={() => handleToggleComplete(item)}
+            className={`mt-0.5 flex-shrink-0 transition-colors ${
+              item.completed_at 
+                ? 'text-green-500 hover:text-green-600' 
+                : 'text-gray-300 dark:text-gray-600 hover:text-brand-500'
+            }`}
+          >
+            {item.completed_at ? <CheckSquare size={20} /> : <Square size={20} />}
+          </button>
+          
+          <div className="flex-1 min-w-0">
+            <p className={`text-sm font-medium leading-relaxed truncate ${
+              item.completed_at ? 'text-gray-500 dark:text-gray-400 line-through' : 'text-gray-900 dark:text-gray-100'
+            }`}>
               {item.name}
-            </span>
-            <button
-              className="btn btn-danger btn-sm"
-              style={{ padding: '2px 6px', fontSize: '0.7rem' }}
-              onClick={e => { e.stopPropagation(); handleDeleteItem(item.id); }}
-            >
-              ×
-            </button>
+            </p>
+            
+            <div className="flex flex-wrap gap-3 mt-2 text-xs">
+              <span className="text-gray-400 dark:text-gray-500 font-mono">#{item.id}</span>
+              {item.end_at && (
+                <span className={`flex items-center gap-1 px-2 py-0.5 rounded-md ${
+                  new Date(item.end_at) < new Date() && !item.completed_at
+                    ? 'bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400 font-medium'
+                    : 'bg-gray-50 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                }`}>
+                  <Clock size={12} />
+                  {new Date(item.end_at).toLocaleDateString()}
+                </span>
+              )}
+            </div>
           </div>
-          {item.end_at && (
-            <div className="todo-meta">⏰ Due: {new Date(item.end_at).toLocaleDateString()}</div>
-          )}
+
+          <button
+            onClick={() => handleDeleteItem(item.id)}
+            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all p-1"
+          >
+            <X size={16} />
+          </button>
         </div>
       </div>
     ));
   };
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowAddGroup(true)}>
-          + New Group
+    <div className="space-y-6 animate-in fade-in duration-500 h-full flex flex-col">
+      <header className="flex justify-between items-center shrink-0">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Task Board</h2>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Manage your projects and to-dos</p>
+        </div>
+        <button 
+          onClick={() => setShowAddGroup(true)}
+          className="px-4 py-2 bg-brand-50 text-brand-700 hover:bg-brand-100 dark:bg-brand-900/20 dark:text-brand-300 dark:hover:bg-brand-900/40 rounded-xl font-medium flex items-center gap-2 transition-colors"
+        >
+          <Plus size={18} /> New Column
         </button>
-      </div>
+      </header>
 
       {board.length === 0 ? (
-        <div className="empty-state">
-          <div className="emoji">📋</div>
-          <p>No todo groups yet. Create one to get started!</p>
+        <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-white dark:bg-[#1a1a2e] rounded-2xl border border-gray-100 dark:border-gray-800 border-dashed">
+          <div className="w-16 h-16 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
+            <ListTodo size={32} className="text-gray-400" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-1">Your board is empty</h3>
+          <p className="text-gray-500 dark:text-gray-400 mb-6">Create a column to start organizing your tasks</p>
+          <button 
+            onClick={() => setShowAddGroup(true)}
+            className="px-6 py-2.5 bg-brand-600 text-white hover:bg-brand-700 rounded-xl font-medium flex items-center gap-2 transition-colors"
+          >
+            <Plus size={18} /> Add First Column
+          </button>
         </div>
       ) : (
-        <div className="kanban">
-          {board.map(col => {
-            const parentItems = col.items.filter(i => !i.parent_id);
-            const subItems = col.items.filter(i => i.parent_id);
+        <div className="flex-1 overflow-x-auto pb-4 -mx-4 px-4 md:mx-0 md:px-0">
+          <div className="flex gap-6 min-h-[500px] h-full">
+            {board.map(col => {
+              const parentItems = col.items.filter((i: any) => !i.parent_id);
+              const subItems = col.items.filter((i: any) => i.parent_id);
 
-            return (
-              <div className="kanban-column" key={col.group.id}>
-                <div className="kanban-header">
-                  <h3>{col.group.name}</h3>
-                  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                    <span className="kanban-count">{parentItems.length}</span>
-                    {col.completed_items.length > 0 && (
-                      <button
-                        className="btn btn-ghost btn-sm"
-                        style={{ padding: '2px 6px', fontSize: '0.7rem' }}
-                        onClick={() => setShowCompleted(showCompleted === col.group.id ? null : col.group.id)}
-                      >
-                        ✅ {col.completed_items.length}
-                      </button>
-                    )}
+              return (
+                <div key={col.group.id} className="w-[340px] shrink-0 flex flex-col bg-gray-50/50 dark:bg-[#0f0f0f] border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden">
+                  <div className="p-4 border-b border-gray-100 dark:border-gray-800 bg-white/50 dark:bg-[#1a1a2e]/50 backdrop-blur-sm sticky top-0 z-10 flex justify-between items-center group">
+                    <div className="flex items-center gap-3">
+                      <h3 className="font-bold text-gray-900 dark:text-white">{col.group.name}</h3>
+                      <span className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-xs font-medium text-gray-600 dark:text-gray-400">
+                        {parentItems.length}
+                      </span>
+                    </div>
                     <button
-                      className="btn btn-ghost btn-sm"
-                      style={{ padding: '2px 6px', fontSize: '0.7rem' }}
                       onClick={() => handleDeleteGroup(col.group.id)}
+                      className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all p-1"
                     >
-                      ×
+                      <X size={16} />
                     </button>
                   </div>
+
+                  <div className="flex-1 p-4 overflow-y-auto">
+                    {renderItems(parentItems)}
+
+                    {parentItems.map((parent: any) => {
+                      const children = subItems.filter((s: any) => s.parent_id === parent.id);
+                      return children.length > 0 ? (
+                        <div key={`sub-${parent.id}`} className="relative">
+                          <div className="absolute left-[22px] top-[-12px] bottom-6 w-px bg-gray-200 dark:bg-gray-800" />
+                          {renderItems(children, true)}
+                        </div>
+                      ) : null;
+                    })}
+
+                    {col.completed_items.length > 0 && (
+                      <div className="mt-6">
+                        <button
+                          onClick={() => setShowCompleted(showCompleted === col.group.id ? null : col.group.id)}
+                          className="flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors mb-3 w-full"
+                        >
+                          {showCompleted === col.group.id ? <ChevronRight className="rotate-90 transition-transform" size={14} /> : <ChevronRight size={14} className="transition-transform" />}
+                          Completed ({col.completed_items.length})
+                        </button>
+                        
+                        <div className={`transition-all duration-300 overflow-hidden ${showCompleted === col.group.id ? 'opacity-100' : 'max-h-0 opacity-0'}`}>
+                          {renderItems(col.completed_items)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-3 border-t border-gray-100 dark:border-gray-800 bg-white/50 dark:bg-[#1a1a2e]/50 backdrop-blur-sm shrink-0">
+                    {showAddItem === col.group.id ? (
+                      <div className="bg-white dark:bg-[#1a1a2e] border border-brand-200 dark:border-brand-900/50 shadow-[0_0_15px_rgba(124,92,252,0.1)] rounded-xl p-3 animate-in zoom-in-95 duration-200">
+                        <input
+                          autoFocus
+                          placeholder="What needs to be done?"
+                          className="w-full bg-transparent outline-none text-sm mb-3 placeholder-gray-400"
+                          value={newItemName}
+                          onChange={e => setNewItemName(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') handleAddItem(col.group.id);
+                            if (e.key === 'Escape') setShowAddItem(null);
+                          }}
+                        />
+                        <div className="space-y-2 mb-3">
+                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                            <CornerDownRight size={14} />
+                            <input
+                              type="number"
+                              placeholder="Parent ID (Optional)"
+                              className="bg-gray-50 dark:bg-[#0f0f0f] border border-gray-100 dark:border-gray-800 rounded-md px-2 py-1 outline-none w-full"
+                              value={newItemParent ?? ''}
+                              onChange={e => setNewItemParent(e.target.value ? Number(e.target.value) : undefined)}
+                            />
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                            <Clock size={14} />
+                            <input
+                              type="date"
+                              className="bg-gray-50 dark:bg-[#0f0f0f] border border-gray-100 dark:border-gray-800 rounded-md px-2 py-1 outline-none w-full"
+                              value={newItemEndAt}
+                              onChange={e => setNewItemEndAt(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <button onClick={() => setShowAddItem(null)} className="px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg">Cancel</button>
+                          <button onClick={() => handleAddItem(col.group.id)} className="px-3 py-1.5 text-xs font-medium bg-brand-600 text-white hover:bg-brand-700 rounded-lg">Add Task</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setShowAddItem(col.group.id)}
+                        className="w-full py-2.5 flex items-center justify-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-white dark:hover:bg-[#222244] hover:text-brand-600 dark:hover:text-brand-400 rounded-xl transition-all"
+                      >
+                        <Plus size={16} /> Add Task
+                      </button>
+                    )}
+                  </div>
                 </div>
-
-                {renderItems(parentItems)}
-
-                {parentItems.map(parent => {
-                  const children = subItems.filter(s => s.parent_id === parent.id);
-                  return children.length > 0 ? (
-                    <div key={`sub-${parent.id}`} className="sub-todo">
-                      {renderItems(children, true)}
-                    </div>
-                  ) : null;
-                })}
-
-                {showCompleted === col.group.id && col.completed_items.length > 0 && (
-                  <div style={{ marginTop: 8, opacity: 0.6 }}>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: 4 }}>
-                      Completed (24h)
-                    </div>
-                    {renderItems(col.completed_items)}
-                  </div>
-                )}
-
-                {showAddItem === col.group.id ? (
-                  <div style={{ marginTop: 8 }}>
-                    <input
-                      className="input"
-                      placeholder="Todo name..."
-                      value={newItemName}
-                      onChange={e => setNewItemName(e.target.value)}
-                      autoFocus
-                      onKeyDown={e => e.key === 'Enter' && handleAddItem(col.group.id)}
-                    />
-                    <div className="input-group" style={{ marginTop: 8 }}>
-                      <label className="input-label">Parent ID (optional, for sub-todo)</label>
-                      <input
-                        className="input"
-                        type="number"
-                        placeholder="Parent ID"
-                        value={newItemParent ?? ''}
-                        onChange={e => setNewItemParent(e.target.value ? Number(e.target.value) : undefined)}
-                      />
-                    </div>
-                    <div className="input-group">
-                      <label className="input-label">Due date (optional)</label>
-                      <input
-                        className="input"
-                        type="date"
-                        value={newItemEndAt}
-                        onChange={e => setNewItemEndAt(e.target.value)}
-                      />
-                    </div>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button className="btn btn-primary btn-sm" onClick={() => handleAddItem(col.group.id)}>Add</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => setShowAddItem(null)}>Cancel</button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    style={{ marginTop: 8, width: '100%' }}
-                    onClick={() => setShowAddItem(col.group.id)}
-                  >
-                    + Add Todo
-                  </button>
-                )}
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
 
       {showAddGroup && (
-        <div className="modal-overlay" onClick={() => setShowAddGroup(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h2>New Todo Group</h2>
-            <div className="input-group">
-              <label className="input-label">Name</label>
-              <input
-                className="input"
-                placeholder="e.g. Long-term Tasks"
-                value={newGroupName}
-                onChange={e => setNewGroupName(e.target.value)}
-                autoFocus
-              />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[#1a1a2e] rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-gray-100 dark:border-gray-800">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">New Column</h3>
+              <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Create a new group for tasks</p>
             </div>
-            <div className="input-group">
-              <label className="input-label">Description (optional)</label>
-              <input
-                className="input"
-                placeholder="..."
-                value={newGroupDesc}
-                onChange={e => setNewGroupDesc(e.target.value)}
-              />
+            
+            <div className="p-6 space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. In Progress"
+                  value={newGroupName}
+                  onChange={e => setNewGroupName(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-gray-900 dark:text-white transition-all"
+                  autoFocus
+                />
+              </div>
             </div>
-            <div className="modal-actions">
-              <button className="btn btn-ghost" onClick={() => setShowAddGroup(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleAddGroup}>Create</button>
+            
+            <div className="p-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-[#0f0f0f]/50 flex justify-end gap-3">
+              <button 
+                onClick={() => setShowAddGroup(false)}
+                className="px-5 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleAddGroup}
+                className="px-5 py-2.5 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-xl transition-colors flex items-center gap-2"
+              >
+                Create Column
+              </button>
             </div>
           </div>
         </div>
