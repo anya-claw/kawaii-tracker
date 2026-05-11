@@ -2,7 +2,7 @@ import styled from '@emotion/styled'
 import type { TodoItem } from '../../shared/api/schema'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Check } from 'lucide-react'
+import { GripVertical, Check, Plus, Clock } from 'lucide-react'
 import { KanbanAPI } from '../../shared/api'
 
 const CardContainer = styled.div<{ isDragging: boolean; isDone: boolean }>`
