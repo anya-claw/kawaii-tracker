@@ -59,7 +59,8 @@ export function OverviewBoard() {
     }
 
     useEffect(() => {
-        loadData()
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        loadStats()
     }, [])
 
     const handleAddTag = async (e: React.FormEvent) => {
