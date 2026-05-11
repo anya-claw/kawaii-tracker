@@ -1,11 +1,11 @@
 import { tagRepo } from '../repo/tag.repo';
-import { CreateTagDTO, UpdateTagDTO, Tag } from '../types';
+import { CreateTagDTO, UpdateTagDTO, TrackerTag } from '../types';
 
 export class TagService {
   /**
    * Creates a new tag. Throws if tag already exists.
    */
-  createTag(dto: CreateTagDTO): Tag {
+  createTag(dto: CreateTagDTO): TrackerTag {
     const existing = tagRepo.findByTag(dto.tag);
     if (existing) {
       throw new Error(`Tag '${dto.tag}' already exists.`);
@@ -16,7 +16,7 @@ export class TagService {
   /**
    * Lists all active tags.
    */
-  listTags(): Tag[] {
+  listTags(): TrackerTag[] {
     return tagRepo.findAllActive();
   }
 

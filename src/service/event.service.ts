@@ -1,91 +1,132 @@
-import { tagRepo } from '../repo/tag.repo';
-import { eventRepo } from '../repo/event.repo';
-import { CreateEventDTO, UpdateEventDTO, QueryDTO, Event } from '../types';
-import { parseRange, parseTimeString, formatIso, getBusinessDayStart } from '../util/time';
+import { tagRepo } from '../repo/tag.repo'
+import { eventRepo } from '../repo/event.repo'
+import { CreateEventDTO, UpdateEventDTO, QueryDTO, TrackerEvent } from '../types'
+import { parseRange, parseTimeString, formatIso, getBusinessDayStart } from '../util/time'
 
 export class EventService {
-  /**
-   * Adds an event or completes a placeholder.
-   */
-  addEvent(dto: CreateEventDTO): Event {
-    const tag = tagRepo.findByTag(dto.tag);
-    if (!tag) {
-      throw new Error(`Tag '${dto.tag}' not found.`);
+    /**
+     * Adds an event, managing recurring cycle based on parent/child target completion logic.
+     */
+    addEvent(dto: CreateEventDTO): TrackerEvent {
+        const tag = tagRepo.findByTag(dto.tag)
+        if (!tag) {
+            throw new Error(`Tag '${dto.tag}' not found.`)
+        }
+
+        const now = formatIso()
+        const optionsArg = tag.options ? JSON.parse(tag.options) : {}
+        const targetCount = optionsArg.repeat?.target || 1
+        const recurringType = optionsArg.recurring?.type
+
+        if (recurringType && targetCount > 1) {
+            // Recurring tag with multi-target: maintain main → sub-event chain
+            let mainEvent = eventRepo.findActiveRecurringEvent(tag.id)
+
+            if (!mainEvent) {
+                mainEvent = eventRepo.create({
+                    tag_id: tag.id,
+                    parent_id: null,
+                    completed_at: null,
+                    recurring_mark: 1
+                })
+            }
+
+            const subEvent = eventRepo.create({
+                tag_id: tag.id,
+                parent_id: mainEvent.id,
+                completed_at: now,
+                recurring_mark: 0,
+                details: dto.details,
+                mood: dto.mood
+            })
+
+            const count = eventRepo.countSubEventsByParent(mainEvent.id)
+            if (count >= targetCount) {
+                eventRepo.update(mainEvent.id, { completed_at: now })
+            }
+
+            return subEvent
+        }
+
+        // One-off or recurring with target=1: single completed event
+        return eventRepo.create({
+            tag_id: tag.id,
+            parent_id: null,
+            completed_at: now,
+            recurring_mark: 0,
+            details: dto.details,
+            mood: dto.mood
+        })
     }
 
-    if (tag.is_daily) {
-      // Find today's placeholder
-      const todayStart = formatIso(getBusinessDayStart());
-      const placeholder = eventRepo.findPlaceholderForToday(tag.id, todayStart);
-      
-      if (placeholder && placeholder.completed === 0) {
-        eventRepo.completePlaceholder(placeholder.id, dto);
-        return eventRepo.findById(placeholder.id)!;
-      }
-    }
-    
-    // Create new event
-    return eventRepo.create(tag.id, dto, 1, 0);
-  }
+    /**
+     * Lists events based on query parameters.
+     */
+    listEvents(query: QueryDTO): (TrackerEvent & { tag_name: string })[] {
+        const range = parseRange(query.range)
 
-  /**
-   * Lists events based on query parameters.
-   */
-  listEvents(query: QueryDTO): Event[] {
-    const range = parseRange(query.range);
-    
-    const dbQuery: any = {
-      tag: query.tag,
-      limit: query.limit,
-      completed: query.completed
-    };
+        const dbQuery: QueryDTO = { ...query }
 
-    if (query.range && query.range !== 'all') {
-      dbQuery.since = range.since;
-      dbQuery.until = range.until;
-    } else {
-      if (query.since) dbQuery.since = parseTimeString(query.since);
-      if (query.until) dbQuery.until = parseTimeString(query.until);
+        if (query.range && query.range !== 'all') {
+            dbQuery.since = range.since
+            dbQuery.until = range.until
+        } else {
+            if (query.since) dbQuery.since = parseTimeString(query.since)
+            if (query.until) dbQuery.until = parseTimeString(query.until)
+        }
+
+        return eventRepo.find(dbQuery)
     }
 
-    return eventRepo.find(dbQuery);
-  }
-
-  /**
-   * Updates an existing event.
-   */
-  updateEvent(eventId: number, dto: UpdateEventDTO): void {
-    const event = eventRepo.findById(eventId);
-    if (!event) {
-      throw new Error(`Event with ID ${eventId} not found.`);
+    /**
+     * Updates an existing event.
+     */
+    updateEvent(eventId: number, dto: UpdateEventDTO): void {
+        const event = eventRepo.findById(eventId)
+        if (!event) {
+            throw new Error(`Event with ID ${eventId} not found.`)
+        }
+        eventRepo.update(eventId, dto)
     }
-    eventRepo.update(eventId, dto);
-  }
 
-  /**
-   * Deletes one or multiple events.
-   */
-  deleteEvents(eventIds: number[]): void {
-    if (!eventIds || eventIds.length === 0) {
-      throw new Error('No event IDs provided for deletion.');
+    /**
+     * Deletes one or multiple events.
+     */
+    deleteEvents(eventIds: number[]): void {
+        if (!eventIds || eventIds.length === 0) {
+            throw new Error('No event IDs provided for deletion.')
+        }
+        eventRepo.deleteByIds(eventIds)
     }
-    eventRepo.deleteByIds(eventIds);
-  }
 
-  /**
-   * System cron job logic: creates daily placeholders.
-   */
-  cronDaily(): void {
-    const dailyTags = tagRepo.findAllDailyActive();
-    const todayStart = formatIso(getBusinessDayStart());
-    
-    for (const tag of dailyTags) {
-      const existing = eventRepo.findPlaceholderForToday(tag.id, todayStart);
-      if (!existing) {
-        eventRepo.createPlaceholder(tag.id);
-      }
+    /**
+     * System cron job logic: scans recurring tags and creates placeholder marks for the new cycle.
+     */
+    cronDaily(): void {
+        const allTags = tagRepo.findAllActive()
+
+        for (const tag of allTags) {
+            const opts = JSON.parse(tag.options)
+            if (
+                opts.recurring?.type === 'daily' ||
+                opts.recurring?.type === 'weekly' ||
+                opts.recurring?.type === 'monthly'
+            ) {
+                const active = eventRepo.findActiveRecurringEvent(tag.id)
+                // In a real system, you'd check whether we are actually at the boundary
+                // to spawn a new one (e.g. is it a new week? a new month?).
+                // For simplicity per spec, we generate placeholder if missing.
+                if (!active) {
+                    eventRepo.create({
+                        tag_id: tag.id,
+                        parent_id: null,
+                        completed_at: null,
+                        recurring_mark: 1
+                    })
+                }
+            }
+        }
     }
-  }
 }
 
-export const eventService = new EventService();
+export const eventService = new EventService()
