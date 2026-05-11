@@ -6,10 +6,9 @@ export default defineConfig({
     plugins: [
         react({
             jsxImportSource: '@emotion/react',
-            // @ts-expect-error vite plugin react options might be slightly out of sync
-            babel: {
-                plugins: ['@emotion/babel-plugin']
-            }
+            // babel: {
+            //     plugins: ['@emotion/babel-plugin']
+            // }
         })
     ],
     server: {

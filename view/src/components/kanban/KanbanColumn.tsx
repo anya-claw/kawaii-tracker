@@ -90,9 +90,10 @@ const ItemList = styled.div<{ isOver: boolean }>`
 interface Props {
     group: GroupWithItems
     onAddTodo: (groupId: number) => void
+    onStatusChange?: (id: number, status: 'pending' | 'doing' | 'done') => void
 }
 
-export function KanbanColumn({ group, onAddTodo }: Props) {
+export function KanbanColumn({ group, onAddTodo, onStatusChange }: Props) {
     const {
         attributes,
         listeners,
@@ -147,7 +148,7 @@ export function KanbanColumn({ group, onAddTodo }: Props) {
                         strategy={verticalListSortingStrategy}
                     >
                         {group.items.map(item => (
-                            <KanbanCard key={item.id} item={item} />
+                            <KanbanCard key={item.id} item={item} onStatusChange={onStatusChange} />
                         ))}
                     </SortableContext>
                 </ItemList>

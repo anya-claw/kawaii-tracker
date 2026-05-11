@@ -80,35 +80,38 @@ This document strictly defines the contracts, models, and query parameters for `
 
 ### Module: Tags (Habit Management)
 
-| Action | CLI Command   | API Route                    | Payload (DTO)                                                                                                      | Behavior            |
-| :----- | :------------ | :--------------------------- | :----------------------------------------------------------------------------------------------------------------- | :------------------ |
-| Create | `--addTag`    | `POST /api/tags`             | `{ tag: string, description?: string, option?: { type: string/'daily'/'weekly'/'monthly'/null, target: number } }` | Creates tag         |
-| List   | `--listTag`   | `GET /api/tags`              | `(None)`                                                                                                           | Returns active tags |
-| Update | `--updateTag` | `PATCH /api/tags/:tag_name`  | `{ update: { description?: string, option?: any } }`                                                               | Soft updates        |
-| Delete | `--delTag`    | `DELETE /api/tags/:tag_name` | `(None)`                                                                                                           | Soft deletes tag    |
+| Action | CLI Command   | API Route                   | Payload (DTO)                                                                                                                                                              | Behavior            |
+| :----- | :------------ | :-------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------ |
+| Create | `--addTag`    | `POST /api/tags`            | `{ tag: string, description?: string, option?: { recurring?: { type?: 'daily'\|'weekly'\|'monthly'\|null }, repeat?: { target?: number } } }`                             | Creates tag         |
+| List   | `--listTag`   | `GET /api/tags`             | `(None)`                                                                                                                                                                   | Returns active tags |
+| Update | `--updateTag` | `PUT /api/tags/:name`       | `{ tag: name, update: { description?: string, option?: { recurring?: { type?: 'daily'\|'weekly'\|'monthly'\|null }, repeat?: { target?: number } } } }`                   | Soft updates        |
+| Delete | `--delTag`    | `DELETE /api/tags/:name`    | `(None)`                                                                                                                                                                   | Soft deletes tag    |
 
 ### Module: Events (Check-ins)
 
-| Action | CLI Command   | API Route            | Payload (DTO)                                                 | Behavior            |
-| :----- | :------------ | :------------------- | :------------------------------------------------------------ | :------------------ |
-| Add    | `--addEvent`  | `POST /api/events`   | `{ tag: string, details?: string, mood?: string }`            | Adds an event       |
-| List   | `--listEvent` | `GET /api/events`    | `{ query: { tag?: string, range?: string, limit?: number } }` | Lists events        |
-| Delete | `--delEvent`  | `DELETE /api/events` | `{ eventId?: number, eventIds?: number[] }`                   | Soft deletes events |
+| Action | CLI Command     | API Route             | Payload (DTO)                                                                      | Behavior            |
+| :----- | :-------------- | :-------------------- | :--------------------------------------------------------------------------------- | :------------------ |
+| Add    | `--addEvent`    | `POST /api/events`    | `{ tag: string, details?: string, mood?: string }`                                 | Adds an event       |
+| List   | `--listEvent`   | `GET /api/events`     | `{ query: { tag?: string, range?: string, since?: string, until?: string, limit?: number, completed?: boolean } }` | Lists events        |
+| Update | `--updateEvent` | `PUT /api/events/:id` | `{ eventId: number, update: { details?: string, mood?: string } }`                | Updates an event    |
+| Delete | `--delEvent`    | `DELETE /api/events/:id` | `{ eventId?: number, eventIds?: number[] }`                                        | Soft deletes events |
 
 ### Module: Todos
 
-| Action       | CLI Command    | API Route               | Payload (DTO)                                                                     | Behavior                           |
-| :----------- | :------------- | :---------------------- | :-------------------------------------------------------------------------------- | :--------------------------------- |
-| Create Group | `--addGroup`   | `POST /api/groups`      | `{ name: string, order_index?: number }`                                          | Creates Kanban group               |
-| Create Todo  | `--addTodo`    | `POST /api/todos`       | `{ todo_group_id: number, parent_id?: number, title: string, priority?: string }` | Creates Todo task                  |
-| Update Todo  | `--updateTodo` | `PATCH /api/todos/:id`  | `{ status?: string, order_index?: number, todo_group_id?: number... }`            | Soft updates Todo                  |
-| List Groups  | `--listGroups` | `GET /api/groups`       | `(None)`                                                                          | Returns all groups and their tasks |
-| Delete Todo  | `--delTodo`    | `DELETE /api/todos/:id` | `(None)`                                                                          | Soft deletes Todo                  |
+| Action       | CLI Command    | API Route                | Payload (DTO)                                                                                                    | Behavior                           |
+| :----------- | :------------- | :----------------------- | :--------------------------------------------------------------------------------------------------------------- | :--------------------------------- |
+| Create Group | `--addGroup`   | `POST /api/groups`       | `{ name: string, order_index?: number }`                                                                         | Creates Kanban group               |
+| List Groups  | `--listGroups` | `GET /api/groups`        | `(None)`                                                                                                         | Returns all groups and their tasks |
+| Update Group | (none)         | `PUT /api/groups/:id`    | `{ name?: string, order_index?: number }`                                                                        | Updates group                      |
+| Create Todo  | `--addTodo`    | `POST /api/todos`        | `{ todo_group_id: number, parent_id?: number, title: string, description?: string, due_date?: string, priority?: 'low'\|'medium'\|'high', status?: 'pending'\|'doing'\|'done', order_index?: number }` | Creates Todo task                  |
+| Update Todo  | `--updateTodo` | `PUT /api/todos/:id`     | `{ id: number, status?: string, order_index?: number, todo_group_id?: number, title?: string, description?: string, due_date?: string, priority?: string }`               | Soft updates Todo                  |
+| Delete Todo  | `--delTodo`    | `DELETE /api/todos/:id`  | `(None)`                                                                                                         | Soft deletes Todo                  |
 
 ### Module: Statistics & System
 
-| Action         | CLI Command                                             | API Route                                 | Payload (DTO)                                                 | Behavior                                                                                                                          |
-| :------------- | :------------------------------------------------------ | :---------------------------------------- | :------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------- |
-| Statistics     | `--statistic`                                           | `GET /api/statistics`                     | `(None)`                                                      | Returns combined stats. Sub events (`parent_id IS NOT NULL`) are ALWAYS ignored. Cascading streaks based on tag `recurring.type`. |
-| Filtered Stats | `--statistic '{"query":{"tag":"study","since":"30d"}}'` | `GET /api/statistics?tag=study&since=30d` | `{ query: { tag?: string, since?: string, until?: string } }` | Filtered cascading stats. If type=monthly, returns monthly+weekly+daily streak. If weekly, returns weekly+daily streak.           |
-| Sys Cron       | `--cron-job`                                            | `POST /api/cron/daily`                    | `(None)`                                                      | Automated scans. Creates placeholder event (`recurring_mark=1`) for tags with `recurring` config.                                 |
+| Action         | CLI Command                                              | API Route                                  | Payload (DTO)                                                   | Behavior                                                                                                                          |
+| :------------- | :------------------------------------------------------- | :----------------------------------------- | :-------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------- |
+| Statistics     | `--statistic`                                            | `GET /api/statistics`                      | `(None)`                                                        | Returns combined stats. Sub events (`parent_id IS NOT NULL`) are ALWAYS ignored. Cascading streaks based on tag `recurring.type`. |
+| Filtered Stats | `--statistic '{"query":{"tag":"study","since":"30d"}}'`  | `GET /api/statistics?tag=study&since=30d`  | `{ query: { tag?: string, since?: string, until?: string } }`   | Filtered cascading stats. If type=monthly, returns monthly+weekly+daily streak. If weekly, returns weekly+daily streak.           |
+| Sys Cron       | `--cron-job`                                             | `POST /api/cron/daily`                     | `(None)`                                                        | Automated scans. Creates placeholder event (`recurring_mark=1`) for tags with `recurring` config.                                 |
+| Dashboard      | (none)                                                   | `GET /api/dashboard`                       | `(None)`                                                        | Returns per-tag progress, streaks, and period completion.                                                                         |

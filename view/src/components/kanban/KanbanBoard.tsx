@@ -258,6 +258,15 @@ export function KanbanBoard() {
 
     const columnIds = useMemo(() => groups.map(g => `column-${g.group.id}`), [groups])
 
+    const handleStatusChange = (id: number, newStatus: 'pending' | 'doing' | 'done') => {
+        setGroups(prev =>
+            prev.map(g => ({
+                ...g,
+                items: g.items.map(item => (item.id === id ? { ...item, status: newStatus } : item))
+            }))
+        )
+    }
+
     return (
         <DndContext
             sensors={sensors}
@@ -269,7 +278,12 @@ export function KanbanBoard() {
             <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
                 <BoardContainer>
                     {groups.map(group => (
-                        <KanbanColumn key={group.group.id} group={group} onAddTodo={openTodoModal} />
+                        <KanbanColumn
+                            key={group.group.id}
+                            group={group}
+                            onAddTodo={openTodoModal}
+                            onStatusChange={handleStatusChange}
+                        />
                     ))}
                     <AddGroupButton onClick={() => setIsGroupModalOpen(true)}>
                         <Plus size={20} />
