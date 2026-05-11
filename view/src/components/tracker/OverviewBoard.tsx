@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import styled from '@emotion/styled'
 import { TrackerAPI, KanbanAPI } from '../../shared/api'
 import type { DashboardStat, TodoItem } from '../../shared/api/schema'
@@ -85,7 +85,7 @@ export function OverviewBoard() {
     const [details, setDetails] = useState('')
     const [mood, setMood] = useState('')
 
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         try {
             const data = await TrackerAPI.getDashboard()
             setStats(data)
@@ -111,11 +111,12 @@ export function OverviewBoard() {
         } catch (e) {
             console.error(e)
         }
-    }
+    }, [])
 
     useEffect(() => {
-        loadStats()
-    }, [])
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching on mount is a valid effect use case
+        void loadData()
+    }, [loadData])
 
     const handleToggleTodo = async (todo: TodoItem) => {
         try {
