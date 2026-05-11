@@ -124,22 +124,17 @@ export function OverviewPanel() {
     const [pendingTodos, setPendingTodos] = useState<TodoItem[]>([])
 
     const loadData = () => {
-        // Fetch Habit Overview
-        TrackerAPI.getDashboard().then(setHabits).catch(console.error)
+        Promise.all([TrackerAPI.getDashboard(), KanbanAPI.getGroups()])
+            .then(([dashboardData, groups]) => {
+                setHabits(dashboardData)
 
-        // Fetch Todo Overview
-        KanbanAPI.getGroups()
-            .then(groups => {
                 const allItems = groups.map(g => g.items).flat()
                 const pending = allItems
                     .filter(i => i.status !== 'done')
                     .sort((a, b) => {
-                        // Sort by priority
                         const pMap: Record<string, number> = { high: 3, medium: 2, low: 1 }
                         const pDiff = (pMap[b.priority] || 0) - (pMap[a.priority] || 0)
                         if (pDiff !== 0) return pDiff
-
-                        // Then by due date (earlier first)
                         if (a.due_date && b.due_date) {
                             return new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
                         }
@@ -147,7 +142,7 @@ export function OverviewPanel() {
                         if (b.due_date) return 1
                         return 0
                     })
-                    .slice(0, 8) // Top 8 pending tasks
+                    .slice(0, 8)
                 setPendingTodos(pending)
             })
             .catch(console.error)
