@@ -20,6 +20,11 @@ const ColumnContainer = styled.div`
     flex-direction: column;
     box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
     border: 1px solid ${({ theme }) => theme.colors.border};
+
+    @media (max-width: 768px) {
+        width: 100%;
+        min-width: unset;
+    }
 `
 
 const ColumnHeader = styled.div`
@@ -114,10 +119,11 @@ interface Props {
     group: GroupWithItems
     onAddTodo: (groupId: number, parentId?: number) => void
     onEditTodo?: (todo: any) => void
+    onAddSubTask?: (parent: any) => void
     onStatusChange?: (id: number, status: 'pending' | 'doing' | 'done') => void
 }
 
-export function KanbanColumn({ group, onAddTodo, onEditTodo, onStatusChange }: Props) {
+export function KanbanColumn({ group, onAddTodo, onEditTodo, onAddSubTask, onStatusChange }: Props) {
     const [showCompleted, setShowCompleted] = useState(false)
     const {
         attributes,
@@ -187,7 +193,7 @@ export function KanbanColumn({ group, onAddTodo, onEditTodo, onStatusChange }: P
                                 subItems={getSubItems(item.id)}
                                 onStatusChange={onStatusChange} 
                                 onClick={() => onEditTodo?.(item)} 
-                                onAddSubTask={() => onAddTodo(group.group.id, item.id)}
+                                onAddSubTask={() => onAddSubTask?.(item)}
                                 onEditSubTask={(sub) => onEditTodo?.(sub)}
                             />
                         ))}
@@ -211,7 +217,7 @@ export function KanbanColumn({ group, onAddTodo, onEditTodo, onStatusChange }: P
                                             subItems={getSubItems(item.id)}
                                             onStatusChange={onStatusChange} 
                                             onClick={() => onEditTodo?.(item)}
-                                            onAddSubTask={() => onAddTodo(group.group.id, item.id)}
+                                            onAddSubTask={() => onAddSubTask?.(item)}
                                             onEditSubTask={(sub) => onEditTodo?.(sub)}
                                         />
                                     ))}

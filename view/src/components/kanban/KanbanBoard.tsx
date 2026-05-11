@@ -15,6 +15,7 @@ import { KanbanAPI } from '../../shared/api'
 import type { GroupWithItems, TodoItem, TodoGroup } from '../../shared/api/schema'
 import { KanbanColumn } from './KanbanColumn'
 import { KanbanCard } from './KanbanCard'
+import { SubTodoModal } from './SubTodoModal'
 import { Plus } from 'lucide-react'
 import { Modal } from '../shared/Modal'
 import { FormGroup, ButtonGroup, Button } from '../shared/Form'
@@ -26,6 +27,12 @@ const BoardContainer = styled.div`
     height: 100%;
     padding-bottom: ${({ theme }) => theme.spacing(2)};
     align-items: flex-start;
+
+    @media (max-width: 768px) {
+        flex-direction: column;
+        overflow-x: hidden;
+        align-items: stretch;
+    }
 `
 
 const AddGroupButton = styled.button`
@@ -48,6 +55,11 @@ const AddGroupButton = styled.button`
         color: ${({ theme }) => theme.colors.primary};
         background-color: ${({ theme }) => theme.colors.sidebarHover};
     }
+
+    @media (max-width: 768px) {
+        min-width: unset;
+        width: 100%;
+    }
 `
 
 export function KanbanBoard() {
@@ -62,6 +74,8 @@ export function KanbanBoard() {
     const [activeGroupId, setActiveGroupId] = useState<number | null>(null)
     const [editingTodoId, setEditingTodoId] = useState<number | null>(null)
     const [activeParentId, setActiveParentId] = useState<number | null>(null)
+    const [isSubTodoModalOpen, setIsSubTodoModalOpen] = useState(false)
+    const [subTodoParent, setSubTodoParent] = useState<TodoItem | null>(null)
 
     useEffect(() => {
         KanbanAPI.getGroups().then(setGroups).catch(console.error)
@@ -119,31 +133,41 @@ export function KanbanBoard() {
                 const overItem = activeItems.find(i => i.id.toString() === overId)
                 if (!overItem) return prev
 
+                // Cross-group move
                 if (activeItem.todo_group_id !== overItem.todo_group_id) {
-                    // Move to different group
                     const newGroups = [...prev]
                     const sourceGroup = newGroups.find(g => g.group.id === activeItem.todo_group_id)!
                     const targetGroup = newGroups.find(g => g.group.id === overItem.todo_group_id)!
 
                     sourceGroup.items = sourceGroup.items.filter(i => i.id !== activeItem.id)
 
-                    const clonedItem = { ...activeItem, todo_group_id: targetGroup.group.id }
+                    const clonedItem = { ...activeItem, todo_group_id: targetGroup.group.id, parent_id: overItem.parent_id }
                     const targetIndex = targetGroup.items.findIndex(i => i.id === overItem.id)
                     targetGroup.items.splice(targetIndex, 0, clonedItem)
 
                     return newGroups
-                } else {
-                    // Reorder in same group
+                }
+
+                // Same group: nest as subtask if dragging a top-level item over another top-level item
+                if (!activeItem.parent_id && !overItem.parent_id && activeItem.id !== overItem.id) {
                     const newGroups = [...prev]
                     const group = newGroups.find(g => g.group.id === activeItem.todo_group_id)!
-                    const oldIndex = group.items.findIndex(i => i.id === activeItem.id)
-                    const newIndex = group.items.findIndex(i => i.id === overItem.id)
-
-                    group.items.splice(oldIndex, 1)
-                    group.items.splice(newIndex, 0, activeItem)
-
+                    group.items = group.items.map(i =>
+                        i.id === activeItem.id ? { ...i, parent_id: overItem.id } : i
+                    )
                     return newGroups
                 }
+
+                // Same group: reorder (both are siblings)
+                const newGroups = [...prev]
+                const group = newGroups.find(g => g.group.id === activeItem.todo_group_id)!
+                const oldIndex = group.items.findIndex(i => i.id === activeItem.id)
+                const newIndex = group.items.findIndex(i => i.id === overItem.id)
+
+                group.items.splice(oldIndex, 1)
+                group.items.splice(newIndex, 0, activeItem)
+
+                return newGroups
             }
 
             if (isOverColumn) {
@@ -199,7 +223,8 @@ export function KanbanBoard() {
                 try {
                     await KanbanAPI.updateTodo(activeItemFromState.id, {
                         todo_group_id: activeItemFromState.todo_group_id,
-                        order_index: index * 10 // scale index to avoid collision
+                        parent_id: activeItemFromState.parent_id || undefined,
+                        order_index: index * 10
                     })
                 } catch (e) {
                     console.error('Failed to sync todo', e)
@@ -299,6 +324,22 @@ export function KanbanBoard() {
         )
     }
 
+    const openSubTodoModal = (parent: TodoItem) => {
+        setSubTodoParent(parent)
+        setIsSubTodoModalOpen(true)
+    }
+
+    const handleSubTodoCreated = (newTodo: TodoItem) => {
+        setGroups(prev =>
+            prev.map(g => {
+                if (g.group.id === newTodo.todo_group_id) {
+                    return { ...g, items: [...g.items, newTodo] }
+                }
+                return g
+            })
+        )
+    }
+
     return (
         <DndContext
             sensors={sensors}
@@ -315,6 +356,7 @@ export function KanbanBoard() {
                             group={group}
                             onAddTodo={openTodoModal}
                             onEditTodo={(todo) => openTodoModal(group.group.id, todo)}
+                            onAddSubTask={openSubTodoModal}
                             onStatusChange={handleStatusChange}
                         />
                     ))}
@@ -415,6 +457,13 @@ export function KanbanBoard() {
                     </ButtonGroup>
                 </form>
             </Modal>
+
+            <SubTodoModal
+                isOpen={isSubTodoModalOpen}
+                onClose={() => setIsSubTodoModalOpen(false)}
+                parentItem={subTodoParent}
+                onCreated={handleSubTodoCreated}
+            />
         </DndContext>
     )
 }

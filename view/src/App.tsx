@@ -7,7 +7,9 @@ import {
     CalendarCheck,
     BarChart2,
     KanbanSquare,
-    History as HistoryIcon
+    History as HistoryIcon,
+    Menu,
+    X
 } from 'lucide-react'
 import { KanbanBoard } from './components/kanban/KanbanBoard'
 import { EventHistory } from './components/tracker/EventHistory'
@@ -22,9 +24,21 @@ const Container = styled.div`
     width: 100vw;
     background-color: ${({ theme }) => theme.colors.background};
     font-family: 'Misans', 'Nunito', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    position: relative;
 `
 
-const Sidebar = styled.nav`
+const Overlay = styled.div<{ open: boolean }>`
+    display: none;
+    @media (max-width: 768px) {
+        display: ${({ open }) => (open ? 'block' : 'none')};
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        z-index: 19;
+    }
+`
+
+const Sidebar = styled.nav<{ open: boolean }>`
     width: 260px;
     background-color: ${({ theme }) => theme.colors.surface};
     border-right: 1px solid ${({ theme }) => theme.colors.border};
@@ -33,7 +47,48 @@ const Sidebar = styled.nav`
     flex-direction: column;
     gap: ${({ theme }) => theme.spacing(4)};
     box-shadow: ${({ theme }) => theme.shadows.soft};
-    z-index: 10;
+    z-index: 20;
+    flex-shrink: 0;
+
+    @media (max-width: 768px) {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        transform: ${({ open }) => (open ? 'translateX(0)' : 'translateX(-100%)')};
+        transition: transform 0.25s ease;
+    }
+`
+
+const MobileHeader = styled.div`
+    display: none;
+    @media (max-width: 768px) {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 16px;
+        background-color: ${({ theme }) => theme.colors.surface};
+        border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+`
+
+const Hamburger = styled.button`
+    background: none;
+    border: none;
+    color: ${({ theme }) => theme.colors.text};
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+`
+
+const MobileTitle = styled.span`
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: ${({ theme }) => theme.colors.text};
 `
 
 const Brand = styled.div`
@@ -98,6 +153,10 @@ const MainContent = styled.main`
     display: flex;
     flex-direction: column;
     gap: ${({ theme }) => theme.spacing(3)};
+
+    @media (max-width: 768px) {
+        padding: ${({ theme }) => theme.spacing(2)};
+    }
 `
 
 const Header = styled.header`
@@ -112,23 +171,56 @@ const Header = styled.header`
         color: ${({ theme }) => theme.colors.text};
         margin: 0;
     }
+
+    @media (max-width: 768px) {
+        h1 {
+            font-size: 1.3rem;
+        }
+    }
 `
+
+const tabTitles: Record<string, string> = {
+    overview: 'Overview',
+    'tracker-statistic': 'Tracker Statistic',
+    'tracker-events': 'Events',
+    'tracker-tags': 'Tags',
+    'todo-board': 'To-Do Board',
+    'todo-history': 'To-Do History'
+}
 
 function App() {
     const [activeTab, setActiveTab] = useState<
         'overview' | 'tracker-statistic' | 'tracker-events' | 'tracker-tags' | 'todo-board' | 'todo-history'
     >('overview')
+    const [sidebarOpen, setSidebarOpen] = useState(false)
+
+    const navigate = (tab: typeof activeTab) => {
+        setActiveTab(tab)
+        setSidebarOpen(false)
+    }
 
     return (
         <Container>
-            <Sidebar>
+            <MobileHeader>
+                <Hamburger onClick={() => setSidebarOpen(true)}>
+                    <Menu size={24} />
+                </Hamburger>
+                <MobileTitle>{tabTitles[activeTab]}</MobileTitle>
+            </MobileHeader>
+
+            <Overlay open={sidebarOpen} onClick={() => setSidebarOpen(false)} />
+
+            <Sidebar open={sidebarOpen}>
                 <Brand>
                     <Heart fill="#ff8fb3" size={28} />
                     <h2>Kawaii Tracker</h2>
+                    <Hamburger style={{ marginLeft: 'auto', display: 'none' }} onClick={() => setSidebarOpen(false)}>
+                        <X size={20} />
+                    </Hamburger>
                 </Brand>
 
                 <NavMenu>
-                    <NavItem active={activeTab === 'overview'} onClick={() => setActiveTab('overview')}>
+                    <NavItem active={activeTab === 'overview'} onClick={() => navigate('overview')}>
                         <LayoutDashboard size={20} />
                         <span>Overview</span>
                     </NavItem>
@@ -139,16 +231,16 @@ function App() {
                     <NavMenu>
                         <NavItem
                             active={activeTab === 'tracker-statistic'}
-                            onClick={() => setActiveTab('tracker-statistic')}
+                            onClick={() => navigate('tracker-statistic')}
                         >
                             <BarChart2 size={20} />
                             <span>Tracker Statistic</span>
                         </NavItem>
-                        <NavItem active={activeTab === 'tracker-events'} onClick={() => setActiveTab('tracker-events')}>
+                        <NavItem active={activeTab === 'tracker-events'} onClick={() => navigate('tracker-events')}>
                             <CalendarCheck size={20} />
                             <span>Events</span>
                         </NavItem>
-                        <NavItem active={activeTab === 'tracker-tags'} onClick={() => setActiveTab('tracker-tags')}>
+                        <NavItem active={activeTab === 'tracker-tags'} onClick={() => navigate('tracker-tags')}>
                             <Tags size={20} />
                             <span>Tags</span>
                         </NavItem>
@@ -158,11 +250,11 @@ function App() {
                 <SidebarSection>
                     <h4>To-Do</h4>
                     <NavMenu>
-                        <NavItem active={activeTab === 'todo-board'} onClick={() => setActiveTab('todo-board')}>
+                        <NavItem active={activeTab === 'todo-board'} onClick={() => navigate('todo-board')}>
                             <KanbanSquare size={20} />
                             <span>Board</span>
                         </NavItem>
-                        <NavItem active={activeTab === 'todo-history'} onClick={() => setActiveTab('todo-history')}>
+                        <NavItem active={activeTab === 'todo-history'} onClick={() => navigate('todo-history')}>
                             <HistoryIcon size={20} />
                             <span>History</span>
                         </NavItem>
@@ -172,14 +264,7 @@ function App() {
 
             <MainContent>
                 <Header>
-                    <h1>
-                        {activeTab === 'overview' && 'Overview'}
-                        {activeTab === 'tracker-statistic' && 'Tracker Statistic'}
-                        {activeTab === 'tracker-events' && 'Events'}
-                        {activeTab === 'tracker-tags' && 'Tags'}
-                        {activeTab === 'todo-board' && 'To-Do Board'}
-                        {activeTab === 'todo-history' && 'To-Do History'}
-                    </h1>
+                    <h1>{tabTitles[activeTab]}</h1>
                 </Header>
 
                 {activeTab === 'overview' && <OverviewBoard />}
