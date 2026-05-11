@@ -1,10 +1,11 @@
+import { useState } from 'react'
 import styled from '@emotion/styled'
 import type { GroupWithItems } from '../../shared/api/schema'
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { KanbanCard } from './KanbanCard'
 import { useDroppable } from '@dnd-kit/core'
-import { Plus, GripHorizontal } from 'lucide-react'
+import { Plus, GripHorizontal, ChevronDown, ChevronRight } from 'lucide-react'
 
 const ColumnWrapper = styled.div<{ isDragging: boolean }>`
     opacity: ${({ isDragging }) => (isDragging ? 0.5 : 1)};
@@ -87,13 +88,37 @@ const ItemList = styled.div<{ isOver: boolean }>`
     transition: background-color 0.2s;
 `
 
+const CompletedSection = styled.div`
+    margin-top: ${({ theme }) => theme.spacing(1)};
+    padding-top: ${({ theme }) => theme.spacing(1)};
+    border-top: 1px dashed ${({ theme }) => theme.colors.border};
+`
+
+const CompletedHeader = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.85rem;
+    color: ${({ theme }) => theme.colors.textMuted};
+    cursor: pointer;
+    padding: 4px 0;
+    margin-bottom: 8px;
+    user-select: none;
+
+    &:hover {
+        color: ${({ theme }) => theme.colors.text};
+    }
+`
+
 interface Props {
     group: GroupWithItems
-    onAddTodo: (groupId: number) => void
+    onAddTodo: (groupId: number, parentId?: number) => void
+    onEditTodo?: (todo: any) => void
     onStatusChange?: (id: number, status: 'pending' | 'doing' | 'done') => void
 }
 
-export function KanbanColumn({ group, onAddTodo, onStatusChange }: Props) {
+export function KanbanColumn({ group, onAddTodo, onEditTodo, onStatusChange }: Props) {
+    const [showCompleted, setShowCompleted] = useState(false)
     const {
         attributes,
         listeners,
@@ -119,6 +144,14 @@ export function KanbanColumn({ group, onAddTodo, onStatusChange }: Props) {
         transition
     }
 
+    const pendingItems = group.items.filter(item => item.status !== 'done')
+    const completedItems = group.items.filter(item => item.status === 'done')
+
+    const topLevelPending = pendingItems.filter(item => item.parent_id === null)
+    const topLevelCompleted = completedItems.filter(item => item.parent_id === null)
+
+    const getSubItems = (parentId: number) => group.items.filter(item => item.parent_id === parentId)
+
     return (
         <ColumnWrapper ref={setSortableRef} style={style} isDragging={isDragging}>
             <ColumnContainer>
@@ -130,7 +163,7 @@ export function KanbanColumn({ group, onAddTodo, onStatusChange }: Props) {
                         <h3>{group.group.name}</h3>
                     </div>
                     <HeaderActions>
-                        <span>{group.items.length}</span>
+                        <span>{group.items.filter(i => i.parent_id === null).length}</span>
                         <button
                             onClick={e => {
                                 e.stopPropagation()
@@ -144,13 +177,48 @@ export function KanbanColumn({ group, onAddTodo, onStatusChange }: Props) {
 
                 <ItemList ref={setDroppableRef} isOver={isOver}>
                     <SortableContext
-                        items={group.items.map(i => i.id.toString())}
+                        items={topLevelPending.map(i => i.id.toString())}
                         strategy={verticalListSortingStrategy}
                     >
-                        {group.items.map(item => (
-                            <KanbanCard key={item.id} item={item} onStatusChange={onStatusChange} />
+                        {topLevelPending.map(item => (
+                            <KanbanCard 
+                                key={item.id} 
+                                item={item} 
+                                subItems={getSubItems(item.id)}
+                                onStatusChange={onStatusChange} 
+                                onClick={() => onEditTodo?.(item)} 
+                                onAddSubTask={() => onAddTodo(group.group.id, item.id)}
+                                onEditSubTask={(sub) => onEditTodo?.(sub)}
+                            />
                         ))}
                     </SortableContext>
+                    
+                    {topLevelCompleted.length > 0 && (
+                        <CompletedSection>
+                            <CompletedHeader onClick={() => setShowCompleted(!showCompleted)}>
+                                {showCompleted ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                Completed ({topLevelCompleted.length})
+                            </CompletedHeader>
+                            {showCompleted && (
+                                <SortableContext
+                                    items={topLevelCompleted.map(i => i.id.toString())}
+                                    strategy={verticalListSortingStrategy}
+                                >
+                                    {topLevelCompleted.map(item => (
+                                        <KanbanCard 
+                                            key={item.id} 
+                                            item={item} 
+                                            subItems={getSubItems(item.id)}
+                                            onStatusChange={onStatusChange} 
+                                            onClick={() => onEditTodo?.(item)}
+                                            onAddSubTask={() => onAddTodo(group.group.id, item.id)}
+                                            onEditSubTask={(sub) => onEditTodo?.(sub)}
+                                        />
+                                    ))}
+                                </SortableContext>
+                            )}
+                        </CompletedSection>
+                    )}
                 </ItemList>
             </ColumnContainer>
         </ColumnWrapper>

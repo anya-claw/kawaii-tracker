@@ -40,20 +40,19 @@ const DateInfo = styled.div`
 `
 
 export function TodoHistory() {
-    const [completedTodos, setCompletedTodos] = useState<TodoItem[]>([])
+    const [historyItems, setHistoryItems] = useState<{ todo: TodoItem; groupName: string }[]>([])
 
     useEffect(() => {
-        // KanbanAPI.getGroups() gives all groups and items.
-        // We'll extract items that are "done" or implicitly completed if they're in a "Done" column.
-        // The DTO has status='done', let's use that, or just show all for now since status isn't heavily used in the simple drag-drop.
-        // Wait, the schema has `status: 'pending' | 'doing' | 'done'`.
-        // For now, let's just grab all items and sort by updated_at to simulate a history log.
         KanbanAPI.getGroups()
             .then(groups => {
-                const allItems = groups.map(g => g.items).flat()
+                const allItems = groups.flatMap(g => 
+                    g.items.map(item => ({ todo: item, groupName: g.group.name }))
+                )
+                // Filter only done items
+                const doneItems = allItems.filter(item => item.todo.status === 'done')
                 // Sort by updated_at descending
-                allItems.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-                setCompletedTodos(allItems)
+                doneItems.sort((a, b) => new Date(b.todo.updated_at).getTime() - new Date(a.todo.updated_at).getTime())
+                setHistoryItems(doneItems)
             })
             .catch(console.error)
     }, [])
@@ -61,23 +60,33 @@ export function TodoHistory() {
     return (
         <Container>
             <p style={{ color: '#9aa0a6', fontSize: '0.9rem', marginBottom: '8px' }}>
-                Showing recently updated Kanban tasks.
+                Showing completed Todo tasks.
             </p>
-            {completedTodos.length === 0 ? (
-                <p style={{ color: '#9aa0a6' }}>No task history found.</p>
+            {historyItems.length === 0 ? (
+                <p style={{ color: '#9aa0a6' }}>No completed tasks found.</p>
             ) : (
-                completedTodos.map(todo => (
+                historyItems.map(({ todo, groupName }) => (
                     <HistoryCard key={todo.id}>
-                        <TitleArea>
-                            <CheckCircle2 size={18} color="#b5ead7" />
-                            <span style={{ fontWeight: 600 }}>{todo.title}</span>
-                            {todo.priority === 'high' && (
-                                <span style={{ fontSize: '0.75rem', color: '#ff9a9e' }}>[HIGH]</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <TitleArea>
+                                <CheckCircle2 size={18} color="#b5ead7" />
+                                <span style={{ fontWeight: 600 }}>{todo.title}</span>
+                                {todo.priority === 'high' && (
+                                    <span style={{ fontSize: '0.75rem', color: '#ff9a9e' }}>[HIGH]</span>
+                                )}
+                            </TitleArea>
+                            {todo.description && (
+                                <span style={{ fontSize: '0.85rem', color: '#9aa0a6', paddingLeft: '24px' }}>
+                                    {todo.description}
+                                </span>
                             )}
-                        </TitleArea>
+                            <span style={{ fontSize: '0.75rem', color: '#a0a0a0', paddingLeft: '24px' }}>
+                                Group: {groupName} {todo.due_date ? `| Due: ${todo.due_date}` : ''}
+                            </span>
+                        </div>
                         <DateInfo>
                             <Clock size={14} />
-                            Updated: {new Date(todo.updated_at).toLocaleString()}
+                            Completed: {new Date(todo.updated_at).toLocaleString()}
                         </DateInfo>
                     </HistoryCard>
                 ))

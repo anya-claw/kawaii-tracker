@@ -60,6 +60,8 @@ export function KanbanBoard() {
     const [groupName, setGroupName] = useState('')
     const [todoForm, setTodoForm] = useState<Partial<TodoItem>>({})
     const [activeGroupId, setActiveGroupId] = useState<number | null>(null)
+    const [editingTodoId, setEditingTodoId] = useState<number | null>(null)
+    const [activeParentId, setActiveParentId] = useState<number | null>(null)
 
     useEffect(() => {
         KanbanAPI.getGroups().then(setGroups).catch(console.error)
@@ -221,9 +223,21 @@ export function KanbanBoard() {
         }
     }
 
-    const openTodoModal = (groupId: number) => {
+    const openTodoModal = (groupId: number, todo?: TodoItem, parentId?: number) => {
         setActiveGroupId(groupId)
-        setTodoForm({ title: '', description: '', priority: 'low' })
+        setActiveParentId(parentId || null)
+        if (todo && !parentId) {
+            setEditingTodoId(todo.id)
+            setTodoForm({
+                title: todo.title,
+                description: todo.description || '',
+                priority: todo.priority,
+                due_date: todo.due_date || ''
+            })
+        } else {
+            setEditingTodoId(null)
+            setTodoForm({ title: '', description: '', priority: 'low', due_date: '' })
+        }
         setIsTodoModalOpen(true)
     }
 
@@ -231,28 +245,46 @@ export function KanbanBoard() {
         e.preventDefault()
         if (!todoForm.title?.trim() || activeGroupId === null) return
         try {
-            const group = groups.find(g => g.group.id === activeGroupId)
-            const orderIndex = group ? group.items.length * 10 : 0
-            const newTodo = await KanbanAPI.createTodo({
-                todo_group_id: activeGroupId,
-                title: todoForm.title,
-                description: todoForm.description || undefined,
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                priority: todoForm.priority as any,
-                order_index: orderIndex
-            })
-            setGroups(prev =>
-                prev.map(g => {
-                    if (g.group.id === activeGroupId) {
-                        return { ...g, items: [...g.items, newTodo] }
-                    }
-                    return g
+            if (editingTodoId) {
+                const updatedTodo = await KanbanAPI.updateTodo(editingTodoId, {
+                    title: todoForm.title,
+                    description: todoForm.description || undefined,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    priority: todoForm.priority as any,
+                    due_date: todoForm.due_date || undefined
                 })
-            )
+                setGroups(prev =>
+                    prev.map(g => ({
+                        ...g,
+                        items: g.items.map(item => (item.id === editingTodoId ? { ...item, ...updatedTodo } : item))
+                    }))
+                )
+            } else {
+                const group = groups.find(g => g.group.id === activeGroupId)
+                const orderIndex = group ? group.items.length * 10 : 0
+                const newTodo = await KanbanAPI.createTodo({
+                    todo_group_id: activeGroupId,
+                    parent_id: activeParentId || undefined,
+                    title: todoForm.title,
+                    description: todoForm.description || undefined,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    priority: todoForm.priority as any,
+                    due_date: todoForm.due_date || undefined,
+                    order_index: orderIndex
+                })
+                setGroups(prev =>
+                    prev.map(g => {
+                        if (g.group.id === activeGroupId) {
+                            return { ...g, items: [...g.items, newTodo] }
+                        }
+                        return g
+                    })
+                )
+            }
             setIsTodoModalOpen(false)
         } catch (e) {
             console.error(e)
-            alert('Failed to create todo.')
+            alert('Failed to save todo.')
         }
     }
 
@@ -282,6 +314,7 @@ export function KanbanBoard() {
                             key={group.group.id}
                             group={group}
                             onAddTodo={openTodoModal}
+                            onEditTodo={(todo) => openTodoModal(group.group.id, todo)}
                             onStatusChange={handleStatusChange}
                         />
                     ))}
@@ -333,7 +366,7 @@ export function KanbanBoard() {
                 </form>
             </Modal>
 
-            <Modal isOpen={isTodoModalOpen} onClose={() => setIsTodoModalOpen(false)} title="New Todo Task">
+            <Modal isOpen={isTodoModalOpen} onClose={() => setIsTodoModalOpen(false)} title={editingTodoId ? "Edit Todo Task" : "New Todo Task"}>
                 <form onSubmit={handleAddTodo}>
                     <FormGroup>
                         <label>Title</label>
@@ -353,6 +386,14 @@ export function KanbanBoard() {
                         />
                     </FormGroup>
                     <FormGroup>
+                        <label>Due Date (Optional)</label>
+                        <input
+                            type="date"
+                            value={todoForm.due_date || ''}
+                            onChange={e => setTodoForm(prev => ({ ...prev, due_date: e.target.value }))}
+                        />
+                    </FormGroup>
+                    <FormGroup>
                         <label>Priority</label>
                         <select
                             value={todoForm.priority || 'low'}
@@ -369,7 +410,7 @@ export function KanbanBoard() {
                             Cancel
                         </Button>
                         <Button variant="primary" type="submit">
-                            Add Task
+                            {editingTodoId ? "Save Changes" : "Add Task"}
                         </Button>
                     </ButtonGroup>
                 </form>
