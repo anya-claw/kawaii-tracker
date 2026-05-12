@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import styled from '@emotion/styled'
+import { Tag, Calendar } from 'lucide-react'
 import { TrackerAPI, KanbanAPI } from '../../shared/api'
 import type { DashboardStat, TodoItem } from '../../shared/api/schema'
 import { HabitCard } from './HabitCard'
@@ -167,8 +168,16 @@ export function OverviewBoard() {
                             <TodoContent>
                                 <TodoTitle>{todo.title}</TodoTitle>
                                 <TodoMeta>
-                                    {todo.group_name && <span>📌 {todo.group_name} </span>}
-                                    {todo.due_date && <span>📅 {new Date(todo.due_date).toLocaleDateString()}</span>}
+                                    {todo.group_name && (
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                            <Tag size={12} /> {todo.group_name}
+                                        </span>
+                                    )}
+                                    {todo.due_date && (
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginLeft: '8px' }}>
+                                            <Calendar size={12} /> {new Date(todo.due_date).toLocaleDateString()}
+                                        </span>
+                                    )}
                                 </TodoMeta>
                             </TodoContent>
                             <PriorityBadge priority={todo.priority}>{todo.priority.toUpperCase()}</PriorityBadge>

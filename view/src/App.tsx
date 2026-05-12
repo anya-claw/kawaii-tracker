@@ -65,7 +65,7 @@ const MobileHeader = styled.div`
     @media (max-width: 768px) {
         display: flex;
         align-items: center;
-        gap: 8px;
+        justify-content: space-between;
         padding: 12px 16px;
         background-color: ${({ theme }) => theme.colors.surface};
         border-bottom: 1px solid ${({ theme }) => theme.colors.border};
@@ -138,6 +138,9 @@ const NavItem = styled.a<{ active?: boolean }>`
     font-size: 0.95rem;
     transition: ${({ theme }) => theme.transitions.default};
     cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 
     &:hover {
         background-color: ${({ theme }) => theme.colors.sidebarHover};
@@ -202,10 +205,10 @@ function App() {
     return (
         <Container>
             <MobileHeader>
+                <MobileTitle>{tabTitles[activeTab]}</MobileTitle>
                 <Hamburger onClick={() => setSidebarOpen(true)}>
                     <Menu size={24} />
                 </Hamburger>
-                <MobileTitle>{tabTitles[activeTab]}</MobileTitle>
             </MobileHeader>
 
             <Overlay open={sidebarOpen} onClick={() => setSidebarOpen(false)} />
