@@ -186,8 +186,9 @@ export function KanbanCard({ item, subItems = [], onStatusChange, onClick, onAdd
         try {
             await KanbanAPI.updateTodo(item.id, { status: newStatus })
             onStatusChange?.(item.id, newStatus)
-        } catch (err) {
+        } catch (err: any) {
             console.error('Failed to toggle status', err)
+            alert(err.message || 'Failed to update status')
         }
     }
 
@@ -226,6 +227,8 @@ export function KanbanCard({ item, subItems = [], onStatusChange, onClick, onAdd
                                         const newSt = sub.status === 'done' ? 'pending' : 'done'
                                         KanbanAPI.updateTodo(sub.id, { status: newSt }).then(() => {
                                             onStatusChange?.(sub.id, newSt)
+                                        }).catch((err) => {
+                                            alert(err.message || 'Failed to update status')
                                         })
                                     }}
                                 >

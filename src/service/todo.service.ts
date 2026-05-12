@@ -47,6 +47,20 @@ export class TodoService {
             if (!group) throw new Error(`Target group ${data.todo_group_id} not found`)
         }
 
+        // Block completing a parent todo if any sub-todo is not done
+        if (data.status === 'done') {
+            const subTodos = todoRepo.findByParent(id)
+            if (subTodos.length > 0) {
+                const pending = subTodos.filter(s => s.status !== 'done')
+                if (pending.length > 0) {
+                    throw new Error(
+                        `Cannot complete todo ${id}: ${pending.length} sub-todo(s) still pending. ` +
+                        `Incomplete: ${pending.map(p => `#${p.id} "${p.title}"`).join(', ')}`
+                    )
+                }
+            }
+        }
+
         todoRepo.update(id, data)
         return todoRepo.findById(id)!
     }
