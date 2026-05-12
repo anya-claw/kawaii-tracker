@@ -18,34 +18,56 @@ export class EventService {
         const targetCount = optionsArg.repeat?.target || 1
         const recurringType = optionsArg.recurring?.type
 
-        if (recurringType && targetCount > 1) {
-            // Recurring tag with multi-target: maintain main → sub-event chain
+        if (recurringType) {
+            // Recurring tag: always try to find or manage the main cycle event (placeholder)
             let mainEvent = eventRepo.findActiveRecurringEvent(tag.id)
 
-            if (!mainEvent) {
-                mainEvent = eventRepo.create({
+            if (targetCount > 1) {
+                // Multi-target: maintain main -> sub-event chain
+                if (!mainEvent) {
+                    mainEvent = eventRepo.create({
+                        tag_id: tag.id,
+                        parent_id: null,
+                        completed_at: null,
+                        recurring_mark: 1
+                    })
+                }
+
+                const subEvent = eventRepo.create({
                     tag_id: tag.id,
-                    parent_id: null,
-                    completed_at: null,
-                    recurring_mark: 1
+                    parent_id: mainEvent.id,
+                    completed_at: now,
+                    recurring_mark: 0,
+                    details: dto.details,
+                    mood: dto.mood
                 })
+
+                const count = eventRepo.countSubEventsByParent(mainEvent.id)
+                if (count >= targetCount) {
+                    eventRepo.update(mainEvent.id, { completed_at: now })
+                }
+
+                return subEvent
+            } else {
+                // targetCount === 1: directly complete the placeholder if it exists, otherwise create new
+                if (mainEvent) {
+                    eventRepo.update(mainEvent.id, {
+                        completed_at: now,
+                        details: dto.details,
+                        mood: dto.mood
+                    })
+                    return eventRepo.findById(mainEvent.id)!
+                } else {
+                    return eventRepo.create({
+                        tag_id: tag.id,
+                        parent_id: null,
+                        completed_at: now,
+                        recurring_mark: 1, // Keep as recurring mark since it represents a cycle completion
+                        details: dto.details,
+                        mood: dto.mood
+                    })
+                }
             }
-
-            const subEvent = eventRepo.create({
-                tag_id: tag.id,
-                parent_id: mainEvent.id,
-                completed_at: now,
-                recurring_mark: 0,
-                details: dto.details,
-                mood: dto.mood
-            })
-
-            const count = eventRepo.countSubEventsByParent(mainEvent.id)
-            if (count >= targetCount) {
-                eventRepo.update(mainEvent.id, { completed_at: now })
-            }
-
-            return subEvent
         }
 
         // One-off or recurring with target=1: single completed event
