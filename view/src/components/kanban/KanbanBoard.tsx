@@ -109,14 +109,54 @@ export function KanbanBoard() {
         useSensor(KeyboardSensor)
     )
 
+    // Build set of todo IDs that have children (for nesting prevention)
+    const todosWithChildren = useMemo(() => {
+        const allItems = groups.map(g => g.items).flat()
+        const parentIds = new Set<number>()
+        allItems.forEach(item => {
+            if (item.parent_id) parentIds.add(item.parent_id)
+        })
+        return parentIds
+    }, [groups])
+
+    // All sortable IDs: columns + top-level items + subtasks
+    const allSortableIds = useMemo(() => {
+        const ids: string[] = []
+        groups.forEach(g => {
+            ids.push(`column-${g.group.id}`)
+            g.items.forEach(item => {
+                if (item.parent_id === null) {
+                    ids.push(item.id.toString())
+                }
+                ids.push(`sub-${item.id}`)
+            })
+        })
+        return ids
+    }, [groups])
+
     const handleDragStart = (event: DragStartEvent) => {
         const { active } = event
         const type = active.data.current?.type
         if (type === 'TodoItem') {
             setActiveItem(active.data.current?.item as TodoItem)
+        } else if (type === 'SubTask') {
+            setActiveItem(active.data.current?.item as TodoItem)
         } else if (type === 'Column') {
             setActiveGroup(active.data.current?.group as TodoGroup)
         }
+    }
+
+    /**
+     * Resolve a drag ID to the actual TodoItem.
+     * IDs can be plain number (top-level todo) or `sub-{id}` (subtask).
+     */
+    const resolveItem = (id: string | number, items: TodoItem[]): TodoItem | undefined => {
+        const strId = String(id)
+        if (strId.startsWith('sub-')) {
+            const realId = parseInt(strId.slice(4), 10)
+            return items.find(i => i.id === realId)
+        }
+        return items.find(i => i.id.toString() === strId)
     }
 
     const handleDragOver = (event: DragOverEvent) => {
@@ -143,27 +183,63 @@ export function KanbanBoard() {
         }
 
         const isActiveTask = active.data.current?.type === 'TodoItem'
+        const isActiveSubTask = active.data.current?.type === 'SubTask'
         const isOverTask = over.data.current?.type === 'TodoItem'
+        const isOverSubTask = over.data.current?.type === 'SubTask'
 
-        if (!isActiveTask) return
+        if (!isActiveTask && !isActiveSubTask) return
 
         setGroups(prev => {
-            const activeItems = prev.map(g => g.items).flat()
-            const activeItem = activeItems.find(i => i.id.toString() === activeId)
+            const allItems = prev.map(g => g.items).flat()
+            const activeItem = resolveItem(activeId, allItems)
             if (!activeItem) return prev
 
+            // Dragging over a Todo (top-level card or its drop zone)
             if (isOverTask) {
-                const overItem = activeItems.find(i => i.id.toString() === overId)
+                const overItem = resolveItem(overId, allItems)
                 if (!overItem) return prev
 
-                // Cross-group move
+                // Prevent nesting: if the dragged item has children, it cannot become a subtask
+                const draggedHasChildren = allItems.some(i => i.parent_id === activeItem.id)
+                if (draggedHasChildren) return prev
+
+                // SubTask dragged over a Todo → become its SubTask
+                if (isActiveSubTask || activeItem.parent_id) {
+                    if (activeItem.id === overItem.id) return prev
+                    const newGroups = [...prev]
+                    const sourceGroup = newGroups.find(g => g.group.id === activeItem.todo_group_id)!
+                    const targetGroup = newGroups.find(g => g.group.id === overItem.todo_group_id)!
+
+                    // Remove from source
+                    sourceGroup.items = sourceGroup.items.filter(i => i.id !== activeItem.id)
+
+                    // Reparent to the target todo
+                    const clonedItem = {
+                        ...activeItem,
+                        todo_group_id: overItem.todo_group_id,
+                        parent_id: overItem.id
+                    }
+                    targetGroup.items.push(clonedItem)
+                    return newGroups
+                }
+
+                // Top-level Todo dragged over another top-level Todo → nest as subtask
+                if (!activeItem.parent_id && !overItem.parent_id && activeItem.id !== overItem.id) {
+                    const newGroups = [...prev]
+                    const group = newGroups.find(g => g.group.id === activeItem.todo_group_id)!
+                    group.items = group.items.map(i =>
+                        i.id === activeItem.id ? { ...i, parent_id: overItem.id } : i
+                    )
+                    return newGroups
+                }
+
+                // Cross-group move (top-level items)
                 if (activeItem.todo_group_id !== overItem.todo_group_id) {
                     const newGroups = [...prev]
                     const sourceGroup = newGroups.find(g => g.group.id === activeItem.todo_group_id)!
                     const targetGroup = newGroups.find(g => g.group.id === overItem.todo_group_id)!
 
                     sourceGroup.items = sourceGroup.items.filter(i => i.id !== activeItem.id)
-
                     const clonedItem = {
                         ...activeItem,
                         todo_group_id: targetGroup.group.id,
@@ -171,15 +247,6 @@ export function KanbanBoard() {
                     }
                     const targetIndex = targetGroup.items.findIndex(i => i.id === overItem.id)
                     targetGroup.items.splice(targetIndex, 0, clonedItem)
-
-                    return newGroups
-                }
-
-                // Same group: nest as subtask if dragging a top-level item over another top-level item
-                if (!activeItem.parent_id && !overItem.parent_id && activeItem.id !== overItem.id) {
-                    const newGroups = [...prev]
-                    const group = newGroups.find(g => g.group.id === activeItem.todo_group_id)!
-                    group.items = group.items.map(i => (i.id === activeItem.id ? { ...i, parent_id: overItem.id } : i))
                     return newGroups
                 }
 
@@ -188,15 +255,66 @@ export function KanbanBoard() {
                 const group = newGroups.find(g => g.group.id === activeItem.todo_group_id)!
                 const oldIndex = group.items.findIndex(i => i.id === activeItem.id)
                 const newIndex = group.items.findIndex(i => i.id === overItem.id)
-
                 group.items.splice(oldIndex, 1)
                 group.items.splice(newIndex, 0, activeItem)
+                return newGroups
+            }
 
+            // Dragging over another SubTask
+            if (isOverSubTask) {
+                const overItem = resolveItem(overId, allItems)
+                if (!overItem || activeItem.id === overItem.id) return prev
+
+                // Prevent nesting if dragged item has children
+                const draggedHasChildren = allItems.some(i => i.parent_id === activeItem.id)
+                if (draggedHasChildren) return prev
+
+                const newParentId = overItem.parent_id
+                const newGroupId = overItem.todo_group_id
+
+                // Same parent → reorder
+                if (activeItem.parent_id === newParentId && activeItem.todo_group_id === newGroupId) {
+                    const newGroups = [...prev]
+                    const group = newGroups.find(g => g.group.id === newGroupId)!
+                    const oldIndex = group.items.findIndex(i => i.id === activeItem.id)
+                    const newIndex = group.items.findIndex(i => i.id === overItem.id)
+                    group.items.splice(oldIndex, 1)
+                    group.items.splice(newIndex, 0, activeItem)
+                    return newGroups
+                }
+
+                // Different parent → reparent
+                const newGroups = [...prev]
+                const sourceGroup = newGroups.find(g => g.group.id === activeItem.todo_group_id)!
+                const targetGroup = newGroups.find(g => g.group.id === newGroupId)!
+
+                sourceGroup.items = sourceGroup.items.filter(i => i.id !== activeItem.id)
+                const clonedItem = {
+                    ...activeItem,
+                    todo_group_id: newGroupId,
+                    parent_id: newParentId
+                }
+                targetGroup.items.push(clonedItem)
                 return newGroups
             }
 
             if (isOverColumn) {
                 const targetGroupId = over.data.current?.group.id
+
+                // SubTask dragged to column → promote to top-level Todo
+                if (isActiveSubTask || activeItem.parent_id) {
+                    const newGroups = [...prev]
+                    const sourceGroup = newGroups.find(g => g.group.id === activeItem.todo_group_id)!
+                    const targetGroup = newGroups.find(g => g.group.id === targetGroupId)!
+
+                    sourceGroup.items = sourceGroup.items.filter(i => i.id !== activeItem.id)
+                    const newOrderIndex = targetGroup.items.filter(i => i.parent_id === null).length * 10
+                    const clonedItem = { ...activeItem, todo_group_id: targetGroupId, parent_id: null, order_index: newOrderIndex }
+                    targetGroup.items.push(clonedItem)
+                    return newGroups
+                }
+
+                // Top-level item moved to different column
                 if (activeItem.todo_group_id !== targetGroupId) {
                     const newGroups = [...prev]
                     const sourceGroup = newGroups.find(g => g.group.id === activeItem.todo_group_id)!
@@ -205,7 +323,6 @@ export function KanbanBoard() {
                     sourceGroup.items = sourceGroup.items.filter(i => i.id !== activeItem.id)
                     const clonedItem = { ...activeItem, todo_group_id: targetGroupId }
                     targetGroup.items.push(clonedItem)
-
                     return newGroups
                 }
             }
@@ -221,7 +338,6 @@ export function KanbanBoard() {
         // --- Column drag end ---
         if (activeType === 'Column') {
             setActiveGroup(null)
-            // Sync all group order_index with backend
             try {
                 const updates = groups.map((g, index) => KanbanAPI.updateGroup(g.group.id, { order_index: index }))
                 await Promise.all(updates)
@@ -231,30 +347,32 @@ export function KanbanBoard() {
             return
         }
 
-        // --- Todo item drag end ---
+        // --- Todo / SubTask drag end ---
         setActiveItem(null)
-        const activeId = active.id
-        const activeItemFromState = groups
-            .map(g => g.items)
-            .flat()
-            .find(i => i.id.toString() === activeId)
+        const allItems = groups.map(g => g.items).flat()
+        const activeItemFromState = resolveItem(active.id, allItems)
 
         if (activeItemFromState) {
             const group = groups.find(g => g.group.id === activeItemFromState.todo_group_id)
-            if (group) {
-                const index = group.items.findIndex(i => i.id === activeItemFromState.id)
+            if (!group) return
 
-                // Sync with backend
-                try {
-                    await KanbanAPI.updateTodo(activeItemFromState.id, {
-                        todo_group_id: activeItemFromState.todo_group_id,
-                        parent_id: activeItemFromState.parent_id || undefined,
-                        order_index: index * 10
-                    })
-                } catch (e) {
-                    console.error('Failed to sync todo', e)
-                    // In a real app, we might revert state here on failure
-                }
+            // Find siblings: items with same parent_id in the same group
+            const parentId = activeItemFromState.parent_id ?? null
+            const siblings = group.items.filter(i => (i.parent_id ?? null) === parentId)
+
+            // Batch update all siblings' order_index
+            const updates = siblings.map((item, index) =>
+                KanbanAPI.updateTodo(item.id, {
+                    todo_group_id: item.todo_group_id,
+                    parent_id: item.parent_id || undefined,
+                    order_index: index * 10
+                })
+            )
+
+            try {
+                await Promise.all(updates)
+            } catch (e) {
+                console.error('Failed to sync todo order', e)
             }
         }
     }
@@ -406,6 +524,7 @@ export function KanbanBoard() {
                             onEditTodo={todo => openTodoModal(group.group.id, todo)}
                             onAddSubTask={openSubTodoModal}
                             onStatusChange={handleStatusChange}
+                            todosWithChildren={todosWithChildren}
                             onDeleteGroup={async id => {
                                 try {
                                     await KanbanAPI.deleteGroup(id)
@@ -434,7 +553,11 @@ export function KanbanBoard() {
             </SortableContext>
 
             <DragOverlay>
-                {activeItem ? <KanbanCard item={activeItem} /> : null}
+                {activeItem ? (
+                    <div style={{ opacity: 0.85, maxWidth: 400 }}>
+                        <KanbanCard item={activeItem} />
+                    </div>
+                ) : null}
                 {activeGroup ? (
                     <DragOverlayGroup>
                         <h3>{activeGroup.name}</h3>

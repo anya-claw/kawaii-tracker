@@ -15,6 +15,7 @@ import {
     ChevronLeft,
     ChevronRight
 } from 'lucide-react'
+import { CountdownBadge } from '../shared/CountdownBadge'
 
 const Container = styled.div`
     display: flex;
@@ -422,8 +423,7 @@ export function TodoHistory() {
                                     </InfoItem>
                                     {todo.due_date && (
                                         <InfoItem>
-                                            <Calendar size={14} />
-                                            <span>Due: {formatDate(todo.due_date)}</span>
+                                            <CountdownBadge dueDate={todo.due_date} />
                                         </InfoItem>
                                     )}
                                     {todo.parent_id && (

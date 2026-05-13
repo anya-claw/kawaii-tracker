@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import styled from '@emotion/styled'
 import { Tag, Calendar, CheckCircle2, Clock, Target, Award, BarChart2 } from 'lucide-react'
 import { TrackerAPI, KanbanAPI } from '../../shared/api'
+import { CountdownBadge } from '../shared/CountdownBadge'
 import type { DashboardStat, TodoItem, TrackerEvent } from '../../shared/api/schema'
 import {
     AreaChart,
@@ -610,8 +611,7 @@ export function OverviewBoard({
                                             </TodoBadges>
                                         </TodoContent>
                                         {todo.due_date && (
-                                            <Badge style={{ background: 'transparent', border: 'none' }}>
-                                                <Calendar size={12} />
+                                            <Badge>
                                                 {new Date(todo.due_date).toLocaleDateString()}
                                             </Badge>
                                         )}

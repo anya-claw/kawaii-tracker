@@ -2,17 +2,19 @@ import styled from '@emotion/styled'
 import type { TodoItem } from '../../shared/api/schema'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { useDroppable } from '@dnd-kit/core'
 import { GripVertical, Check, Plus, Clock, ArrowRight, ArrowUp, ArrowDown, Minus } from 'lucide-react'
+import { CountdownBadge } from '../shared/CountdownBadge'
 import { KanbanAPI } from '../../shared/api'
 import { useState } from 'react'
 
-const CardContainer = styled.div<{ isDragging: boolean; isDone: boolean }>`
+const CardContainer = styled.div<{ isDragging: boolean; isDone: boolean; isDropTarget?: boolean }>`
     background-color: ${({ theme }) => theme.colors.surface};
-    border: 1px solid ${({ theme }) => theme.colors.border};
+    border: 1px solid ${({ theme, isDropTarget }) => (isDropTarget ? theme.colors.primary : theme.colors.border)};
     border-radius: ${({ theme }) => theme.borderRadius.small};
     padding: ${({ theme }) => theme.spacing(2)};
     margin-bottom: ${({ theme }) => theme.spacing(1.5)};
-    box-shadow: ${({ theme, isDragging }) => (isDragging ? theme.shadows.hover : theme.shadows.card)};
+    box-shadow: ${({ theme, isDragging, isDropTarget }) => (isDragging ? theme.shadows.hover : isDropTarget ? `0 0 0 2px ${theme.colors.primary}40` : theme.shadows.card)};
     opacity: ${({ isDragging, isDone }) => (isDragging ? 0.5 : isDone ? 0.6 : 1)};
     transition: ${props => props.theme.transitions.default};
     animation: fadeIn 0.2s ease;
@@ -170,7 +172,7 @@ const SubTasksContainer = styled.div`
     gap: 4px;
 `
 
-const SubTaskItem = styled.div<{ isDone: boolean }>`
+const SubTaskItem = styled.div<{ isDone: boolean; isDragging: boolean }>`
     display: flex;
     align-items: flex-start;
     gap: 6px;
@@ -182,6 +184,7 @@ const SubTaskItem = styled.div<{ isDone: boolean }>`
     border: 1px solid ${({ theme }) => theme.colors.border};
     transition: ${props => props.theme.transitions.fast};
     flex-direction: column;
+    opacity: ${({ isDragging }) => (isDragging ? 0.4 : 1)};
 
     ${({ isDone }) =>
         isDone &&
@@ -200,6 +203,21 @@ const SubTaskRow = styled.div`
     align-items: center;
     gap: 6px;
     width: 100%;
+`
+
+const SubTaskDragHandle = styled.div`
+    color: ${({ theme }) => theme.colors.textMuted};
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    flex-shrink: 0;
+    &:active {
+        cursor: grabbing;
+    }
+    @media (max-width: 768px) {
+        display: none;
+    }
 `
 
 const SubTaskDesc = styled.span`
@@ -321,6 +339,63 @@ const getPriorityIcon = (priority: string) => {
     }
 }
 
+interface SubTaskDraggableProps {
+    sub: TodoItem
+    onEditSubTask?: (item: TodoItem) => void
+    onStatusChange?: (id: number, status: 'pending' | 'doing' | 'done') => void
+}
+
+function SubTaskDraggable({ sub, onEditSubTask, onStatusChange }: SubTaskDraggableProps) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+        id: `sub-${sub.id}`,
+        data: { type: 'SubTask', item: sub }
+    })
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition
+    }
+
+    return (
+        <SubTaskItem
+            ref={setNodeRef}
+            style={style}
+            isDone={sub.status === 'done'}
+            isDragging={isDragging}
+            onClick={() => onEditSubTask?.(sub)}
+        >
+            <SubTaskRow>
+                <SubTaskDragHandle {...attributes} {...listeners}>
+                    <GripVertical size={12} />
+                </SubTaskDragHandle>
+                <SubTaskCheckbox
+                    checked={sub.status === 'done'}
+                    onClick={e => {
+                        e.stopPropagation()
+                        const newSt = sub.status === 'done' ? 'pending' : 'done'
+                        KanbanAPI.updateTodo(sub.id, { status: newSt })
+                            .then(() => {
+                                onStatusChange?.(sub.id, newSt)
+                            })
+                            .catch(err => {
+                                const message =
+                                    err instanceof Error ? err.message : 'Failed to update status'
+                                alert(message)
+                            })
+                    }}
+                >
+                    {sub.status === 'done' && <CheckIcon size={10} />}
+                </SubTaskCheckbox>
+                <SubTaskTitle>{sub.title}</SubTaskTitle>
+                <SubTaskPriority priority={sub.priority || 'low'}>
+                    {getPriorityIcon(sub.priority || 'low')}
+                </SubTaskPriority>
+            </SubTaskRow>
+            {sub.description && <SubTaskDesc>{sub.description}</SubTaskDesc>}
+        </SubTaskItem>
+    )
+}
+
 interface Props {
     item: TodoItem
     subItems?: TodoItem[]
@@ -330,6 +405,8 @@ interface Props {
     onEditSubTask?: (item: TodoItem) => void
     allGroups?: { id: number; name: string }[]
     onMoveToGroup?: (todoId: number, groupId: number) => void
+    /** Set of todo IDs that have subtasks — used to prevent nesting */
+    todosWithChildren?: Set<number>
 }
 
 export function KanbanCard({
@@ -340,12 +417,26 @@ export function KanbanCard({
     onAddSubTask,
     onEditSubTask,
     allGroups = [],
-    onMoveToGroup
+    onMoveToGroup,
+    todosWithChildren = new Set()
 }: Props) {
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    const hasChildren = subItems.length > 0
+    const { attributes, listeners, setNodeRef: setSortableRef, transform, transition, isDragging } = useSortable({
         id: item.id.toString(),
-        data: { type: 'TodoItem', item }
+        data: { type: 'TodoItem', item, hasChildren }
     })
+
+    // Droppable zone — SubTasks can be dropped onto this Todo to become its children
+    const { setNodeRef: setDropRef, isOver: isDropOver } = useDroppable({
+        id: `todo-drop-${item.id}`,
+        data: { type: 'TodoItem', item, hasChildren }
+    })
+
+    // Combine both refs
+    const setNodeRef = (el: HTMLDivElement | null) => {
+        setSortableRef(el)
+        setDropRef(el)
+    }
 
     const [showMoveMenu, setShowMoveMenu] = useState(false)
 
@@ -411,7 +502,7 @@ export function KanbanCard({
     }
 
     return (
-        <CardContainer ref={setNodeRef} style={style} isDragging={isDragging} isDone={isDone} onClick={onClick}>
+        <CardContainer ref={setNodeRef} style={style} isDragging={isDragging} isDone={isDone} isDropTarget={isDropOver} onClick={onClick}>
             <CheckboxWrapper checked={isDone} onClick={handleToggle} onMouseDown={e => e.stopPropagation()}>
                 {isDone && <CheckIcon size={14} />}
             </CheckboxWrapper>
@@ -426,48 +517,18 @@ export function KanbanCard({
                         {getPriorityIcon(item.priority || 'low')}
                         {(item.priority || 'low').toUpperCase()}
                     </PriorityBadge>
-                    {item.due_date && (
-                        <DueDateBadge isOverdue={isOverdue}>
-                            <Clock size={10} />
-                            {formatDueDate(item.due_date)}
-                        </DueDateBadge>
-                    )}
+                    {item.due_date && <CountdownBadge dueDate={item.due_date} />}
                 </MetaRow>
 
                 {(subItems.length > 0 || onAddSubTask) && (
                     <SubTasksContainer onClick={e => e.stopPropagation()}>
                         {subItems.map(sub => (
-                            <SubTaskItem
+                            <SubTaskDraggable
                                 key={sub.id}
-                                isDone={sub.status === 'done'}
-                                onClick={() => onEditSubTask?.(sub)}
-                            >
-                                <SubTaskRow>
-                                    <SubTaskCheckbox
-                                        checked={sub.status === 'done'}
-                                        onClick={e => {
-                                            e.stopPropagation()
-                                            const newSt = sub.status === 'done' ? 'pending' : 'done'
-                                            KanbanAPI.updateTodo(sub.id, { status: newSt })
-                                                .then(() => {
-                                                    onStatusChange?.(sub.id, newSt)
-                                                })
-                                                .catch(err => {
-                                                    const message =
-                                                        err instanceof Error ? err.message : 'Failed to update status'
-                                                    alert(message)
-                                                })
-                                        }}
-                                    >
-                                        {sub.status === 'done' && <CheckIcon size={10} />}
-                                    </SubTaskCheckbox>
-                                    <SubTaskTitle>{sub.title}</SubTaskTitle>
-                                    <SubTaskPriority priority={sub.priority || 'low'}>
-                                        {getPriorityIcon(sub.priority || 'low')}
-                                    </SubTaskPriority>
-                                </SubTaskRow>
-                                {sub.description && <SubTaskDesc>{sub.description}</SubTaskDesc>}
-                            </SubTaskItem>
+                                sub={sub}
+                                onEditSubTask={onEditSubTask}
+                                onStatusChange={onStatusChange}
+                            />
                         ))}
                         {onAddSubTask && (
                             <AddSubTaskBtn onClick={onAddSubTask}>

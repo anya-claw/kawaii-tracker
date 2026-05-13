@@ -70,11 +70,12 @@ const Table = styled.table`
     }
 
     th {
-        background-color: ${({ theme }) => theme.colors.background};
-        color: ${({ theme }) => theme.colors.textMuted};
-        font-weight: 600;
-        font-size: 0.85rem;
+        background-color: ${({ theme }) => theme.colors.surfaceAlt};
+        color: ${({ theme }) => theme.colors.text};
+        font-weight: 700;
+        font-size: 0.8rem;
         text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
 
     td {

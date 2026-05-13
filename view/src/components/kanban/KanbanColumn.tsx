@@ -149,6 +149,7 @@ interface Props {
     onMoveToGroup?: (todoId: number, groupId: number) => void
     onDeleteGroup?: (groupId: number) => void
     onArchiveGroup?: (groupId: number) => void
+    todosWithChildren?: Set<number>
 }
 
 export function KanbanColumn({
@@ -160,7 +161,8 @@ export function KanbanColumn({
     onStatusChange,
     onMoveToGroup,
     onDeleteGroup,
-    onArchiveGroup
+    onArchiveGroup,
+    todosWithChildren = new Set()
 }: Props) {
     const [showCompleted, setShowCompleted] = useState(false)
     const {
@@ -253,7 +255,10 @@ export function KanbanColumn({
 
                 <ItemList ref={setDroppableRef} isOver={isOver}>
                     <SortableContext
-                        items={topLevelPending.map(i => i.id.toString())}
+                        items={[
+                            ...topLevelPending.map(i => i.id.toString()),
+                            ...pendingItems.filter(i => i.parent_id !== null).map(i => `sub-${i.id}`)
+                        ]}
                         strategy={verticalListSortingStrategy}
                     >
                         {topLevelPending.map(item => (
@@ -267,6 +272,7 @@ export function KanbanColumn({
                                 onEditSubTask={sub => onEditTodo?.(sub)}
                                 allGroups={allGroups}
                                 onMoveToGroup={onMoveToGroup}
+                                todosWithChildren={todosWithChildren}
                             />
                         ))}
                     </SortableContext>
@@ -279,7 +285,10 @@ export function KanbanColumn({
                             </CompletedHeader>
                             {showCompleted && (
                                 <SortableContext
-                                    items={topLevelCompleted.map(i => i.id.toString())}
+                                    items={[
+                                        ...topLevelCompleted.map(i => i.id.toString()),
+                                        ...completedItems.filter(i => i.parent_id !== null).map(i => `sub-${i.id}`)
+                                    ]}
                                     strategy={verticalListSortingStrategy}
                                 >
                                     {topLevelCompleted.map(item => (
@@ -293,6 +302,7 @@ export function KanbanColumn({
                                             onEditSubTask={sub => onEditTodo?.(sub)}
                                             allGroups={allGroups}
                                             onMoveToGroup={onMoveToGroup}
+                                            todosWithChildren={todosWithChildren}
                                         />
                                     ))}
                                 </SortableContext>
