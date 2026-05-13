@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import styled from '@emotion/styled'
-import type { GroupWithItems } from '../../shared/api/schema'
+import type { GroupWithItems, TodoItem } from '../../shared/api/schema'
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { KanbanCard } from './KanbanCard'
 import { useDroppable } from '@dnd-kit/core'
-import { Plus, GripHorizontal, ChevronDown, ChevronRight } from 'lucide-react'
+import { Plus, GripHorizontal, ChevronDown, ChevronRight, Trash2 } from 'lucide-react'
 
 const ColumnWrapper = styled.div<{ isDragging: boolean }>`
     opacity: ${({ isDragging }) => (isDragging ? 0.5 : 1)};
@@ -20,10 +20,12 @@ const ColumnContainer = styled.div`
     flex-direction: column;
     box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
     border: 1px solid ${({ theme }) => theme.colors.border};
+    transition: ${props => props.theme.transitions.default};
 
     @media (max-width: 768px) {
         width: 100%;
         min-width: unset;
+        border-radius: ${({ theme }) => theme.borderRadius.small};
     }
 `
 
@@ -35,6 +37,8 @@ const ColumnHeader = styled.div`
     align-items: center;
     cursor: grab;
     user-select: none;
+    background-color: ${({ theme }) => theme.colors.surface};
+    border-radius: ${({ theme }) => theme.borderRadius.medium} ${({ theme }) => theme.borderRadius.medium} 0 0;
 
     &:active {
         cursor: grabbing;
@@ -44,6 +48,13 @@ const ColumnHeader = styled.div`
         margin: 0;
         font-size: 1rem;
         color: ${({ theme }) => theme.colors.text};
+        font-weight: 700;
+    }
+
+    @media (max-width: 768px) {
+        cursor: default;
+        padding: ${({ theme }) => theme.spacing(1.5)};
+        border-radius: ${({ theme }) => theme.borderRadius.small} ${({ theme }) => theme.borderRadius.small} 0 0;
     }
 `
 
@@ -53,8 +64,8 @@ const HeaderActions = styled.div`
     gap: ${({ theme }) => theme.spacing(1)};
 
     span {
-        background-color: ${({ theme }) => theme.colors.border};
-        color: ${({ theme }) => theme.colors.textMuted};
+        background-color: ${({ theme }) => theme.colors.primary}20;
+        color: ${({ theme }) => theme.colors.primary};
         padding: 2px 8px;
         border-radius: 12px;
         font-size: 0.8rem;
@@ -67,10 +78,13 @@ const HeaderActions = styled.div`
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 4px;
+        padding: 6px;
         border-radius: ${({ theme }) => theme.borderRadius.small};
+        transition: ${props => props.theme.transitions.fast};
+
         &:hover {
-            background-color: ${({ theme }) => theme.colors.border};
+            background-color: ${({ theme }) => theme.colors.sidebarHover};
+            transform: scale(1.1);
         }
     }
 `
@@ -83,6 +97,10 @@ const DragHandle = styled.div`
     &:active {
         cursor: grabbing;
     }
+
+    @media (max-width: 768px) {
+        display: none;
+    }
 `
 
 const ItemList = styled.div<{ isOver: boolean }>`
@@ -91,6 +109,10 @@ const ItemList = styled.div<{ isOver: boolean }>`
     overflow-y: auto;
     background-color: ${({ isOver, theme }) => (isOver ? theme.colors.sidebarHover : 'transparent')};
     transition: background-color 0.2s;
+
+    @media (max-width: 768px) {
+        padding: ${({ theme }) => theme.spacing(1.5)};
+    }
 `
 
 const CompletedSection = styled.div`
@@ -117,13 +139,25 @@ const CompletedHeader = styled.div`
 
 interface Props {
     group: GroupWithItems
+    allGroups?: { id: number; name: string }[]
     onAddTodo: (groupId: number, parentId?: number) => void
-    onEditTodo?: (todo: any) => void
-    onAddSubTask?: (parent: any) => void
+    onEditTodo?: (todo: TodoItem) => void
+    onAddSubTask?: (parent: TodoItem) => void
     onStatusChange?: (id: number, status: 'pending' | 'doing' | 'done') => void
+    onMoveToGroup?: (todoId: number, groupId: number) => void
+    onDeleteGroup?: (groupId: number) => void
 }
 
-export function KanbanColumn({ group, onAddTodo, onEditTodo, onAddSubTask, onStatusChange }: Props) {
+export function KanbanColumn({
+    group,
+    allGroups = [],
+    onAddTodo,
+    onEditTodo,
+    onAddSubTask,
+    onStatusChange,
+    onMoveToGroup,
+    onDeleteGroup
+}: Props) {
     const [showCompleted, setShowCompleted] = useState(false)
     const {
         attributes,
@@ -178,6 +212,22 @@ export function KanbanColumn({ group, onAddTodo, onEditTodo, onAddSubTask, onSta
                         >
                             <Plus size={16} />
                         </button>
+                        {onDeleteGroup && (
+                            <button
+                                style={{
+                                    marginLeft: 4,
+                                    color: '#ef4444'
+                                }}
+                                onClick={e => {
+                                    e.stopPropagation()
+                                    if (confirm('Are you sure you want to delete this board and all its tasks?')) {
+                                        onDeleteGroup(group.group.id)
+                                    }
+                                }}
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                        )}
                     </HeaderActions>
                 </ColumnHeader>
 
@@ -187,18 +237,20 @@ export function KanbanColumn({ group, onAddTodo, onEditTodo, onAddSubTask, onSta
                         strategy={verticalListSortingStrategy}
                     >
                         {topLevelPending.map(item => (
-                            <KanbanCard 
-                                key={item.id} 
-                                item={item} 
+                            <KanbanCard
+                                key={item.id}
+                                item={item}
                                 subItems={getSubItems(item.id)}
-                                onStatusChange={onStatusChange} 
-                                onClick={() => onEditTodo?.(item)} 
+                                onStatusChange={onStatusChange}
+                                onClick={() => onEditTodo?.(item)}
                                 onAddSubTask={() => onAddSubTask?.(item)}
-                                onEditSubTask={(sub) => onEditTodo?.(sub)}
+                                onEditSubTask={sub => onEditTodo?.(sub)}
+                                allGroups={allGroups}
+                                onMoveToGroup={onMoveToGroup}
                             />
                         ))}
                     </SortableContext>
-                    
+
                     {topLevelCompleted.length > 0 && (
                         <CompletedSection>
                             <CompletedHeader onClick={() => setShowCompleted(!showCompleted)}>
@@ -211,14 +263,16 @@ export function KanbanColumn({ group, onAddTodo, onEditTodo, onAddSubTask, onSta
                                     strategy={verticalListSortingStrategy}
                                 >
                                     {topLevelCompleted.map(item => (
-                                        <KanbanCard 
-                                            key={item.id} 
-                                            item={item} 
+                                        <KanbanCard
+                                            key={item.id}
+                                            item={item}
                                             subItems={getSubItems(item.id)}
-                                            onStatusChange={onStatusChange} 
+                                            onStatusChange={onStatusChange}
                                             onClick={() => onEditTodo?.(item)}
                                             onAddSubTask={() => onAddSubTask?.(item)}
-                                            onEditSubTask={(sub) => onEditTodo?.(sub)}
+                                            onEditSubTask={sub => onEditTodo?.(sub)}
+                                            allGroups={allGroups}
+                                            onMoveToGroup={onMoveToGroup}
                                         />
                                     ))}
                                 </SortableContext>

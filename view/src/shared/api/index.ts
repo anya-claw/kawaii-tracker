@@ -41,6 +41,11 @@ export const KanbanAPI = {
             body: JSON.stringify(data)
         }),
 
+    deleteGroup: (id: number) =>
+        fetchJSON<void>(`${API_BASE}/groups/${id}`, {
+            method: 'DELETE'
+        }),
+
     createTodo: (data: CreateTodoItemDTO) =>
         fetchJSON<TodoItem>(`${API_BASE}/todos`, {
             method: 'POST',

@@ -1,5 +1,4 @@
 import styled from '@emotion/styled'
-import { X } from 'lucide-react'
 import { useEffect, useRef, useState, useCallback } from 'react'
 
 const Overlay = styled.div<{ closing: boolean }>`
@@ -8,13 +7,14 @@ const Overlay = styled.div<{ closing: boolean }>`
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(255, 252, 253, 0.8);
-    backdrop-filter: blur(4px);
+    background-color: ${({ theme }) => theme.colors.overlay};
+    backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
-    animation: ${({ closing }) => (closing ? 'fadeOut 0.2s ease-in forwards' : 'fadeIn 0.2s ease-out')};
+    animation: ${({ closing }) => (closing ? 'fadeOut 0.2s ease forwards' : 'fadeIn 0.2s ease-out')};
+    transition: background-color ${props => props.theme.transitions.slow};
 
     @keyframes fadeIn {
         from {
@@ -45,27 +45,36 @@ const ModalContainer = styled.div<{ closing: boolean }>`
     display: flex;
     flex-direction: column;
     animation: ${({ closing }) =>
-        closing ? 'slideDown 0.2s ease-in forwards' : 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'};
+        closing ? 'slideDown 0.2s ease forwards' : 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'};
+    transition:
+        background-color ${props => props.theme.transitions.slow},
+        border-color ${props => props.theme.transitions.slow};
 
     @keyframes slideUp {
         from {
-            transform: translateY(20px);
+            transform: translateY(30px) scale(0.95);
             opacity: 0;
         }
         to {
-            transform: translateY(0);
+            transform: translateY(0) scale(1);
             opacity: 1;
         }
     }
     @keyframes slideDown {
         from {
-            transform: translateY(0);
+            transform: translateY(0) scale(1);
             opacity: 1;
         }
         to {
-            transform: translateY(20px);
+            transform: translateY(30px) scale(0.95);
             opacity: 0;
         }
+    }
+
+    @media (max-width: 768px) {
+        width: 95%;
+        max-height: 85vh;
+        margin-bottom: 20px;
     }
 `
 
@@ -80,27 +89,18 @@ const Header = styled.div`
         margin: 0;
         font-size: 1.25rem;
         color: ${({ theme }) => theme.colors.text};
-    }
-`
-
-const CloseButton = styled.button`
-    background: transparent;
-    color: ${({ theme }) => theme.colors.textMuted};
-    padding: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: ${({ theme }) => theme.borderRadius.small};
-
-    &:hover {
-        background-color: ${({ theme }) => theme.colors.sidebarHover};
-        color: ${({ theme }) => theme.colors.danger};
+        font-weight: 700;
     }
 `
 
 const Content = styled.div`
     padding: ${({ theme }) => theme.spacing(4)};
     overflow-y: auto;
+    color: ${({ theme }) => theme.colors.text};
+
+    @media (max-width: 768px) {
+        padding: ${({ theme }) => theme.spacing(3)};
+    }
 `
 
 export interface ModalProps {
@@ -154,20 +154,10 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
     if (!visible) return null
 
     return (
-        <Overlay
-            ref={overlayRef}
-            closing={closing}
-            onAnimationEnd={handleAnimationEnd}
-            onClick={e => {
-                if (e.target === overlayRef.current) onClose()
-            }}
-        >
-            <ModalContainer closing={closing}>
+        <Overlay ref={overlayRef} closing={closing} onClick={onClose} onAnimationEnd={handleAnimationEnd}>
+            <ModalContainer closing={closing} onClick={e => e.stopPropagation()}>
                 <Header>
                     <h2>{title}</h2>
-                    <CloseButton onClick={onClose}>
-                        <X size={20} />
-                    </CloseButton>
                 </Header>
                 <Content>{children}</Content>
             </ModalContainer>

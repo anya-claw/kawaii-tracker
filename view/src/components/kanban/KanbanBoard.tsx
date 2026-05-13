@@ -62,6 +62,27 @@ const AddGroupButton = styled.button`
     }
 `
 
+const DragOverlayGroup = styled.div`
+    width: 300px;
+    min-width: 300px;
+    background-color: ${({ theme }) => theme.colors.surface};
+    border: 2px solid ${({ theme }) => theme.colors.primary};
+    border-radius: ${({ theme }) => theme.borderRadius.medium};
+    padding: ${({ theme }) => theme.spacing(3)};
+    box-shadow: ${({ theme }) => theme.shadows.hover};
+
+    h3 {
+        margin: 0;
+        color: ${({ theme }) => theme.colors.text};
+        font-weight: 700;
+    }
+
+    @media (max-width: 768px) {
+        width: 100%;
+        min-width: unset;
+    }
+`
+
 export function KanbanBoard() {
     const [groups, setGroups] = useState<GroupWithItems[]>([])
     const [activeItem, setActiveItem] = useState<TodoItem | null>(null)
@@ -141,7 +162,11 @@ export function KanbanBoard() {
 
                     sourceGroup.items = sourceGroup.items.filter(i => i.id !== activeItem.id)
 
-                    const clonedItem = { ...activeItem, todo_group_id: targetGroup.group.id, parent_id: overItem.parent_id }
+                    const clonedItem = {
+                        ...activeItem,
+                        todo_group_id: targetGroup.group.id,
+                        parent_id: overItem.parent_id
+                    }
                     const targetIndex = targetGroup.items.findIndex(i => i.id === overItem.id)
                     targetGroup.items.splice(targetIndex, 0, clonedItem)
 
@@ -152,9 +177,7 @@ export function KanbanBoard() {
                 if (!activeItem.parent_id && !overItem.parent_id && activeItem.id !== overItem.id) {
                     const newGroups = [...prev]
                     const group = newGroups.find(g => g.group.id === activeItem.todo_group_id)!
-                    group.items = group.items.map(i =>
-                        i.id === activeItem.id ? { ...i, parent_id: overItem.id } : i
-                    )
+                    group.items = group.items.map(i => (i.id === activeItem.id ? { ...i, parent_id: overItem.id } : i))
                     return newGroups
                 }
 
@@ -354,10 +377,19 @@ export function KanbanBoard() {
                         <KanbanColumn
                             key={group.group.id}
                             group={group}
-                            onAddTodo={openTodoModal}
-                            onEditTodo={(todo) => openTodoModal(group.group.id, todo)}
+                            onAddTodo={(groupId, parentId) => openTodoModal(groupId, undefined, parentId)}
+                            onEditTodo={todo => openTodoModal(group.group.id, todo)}
                             onAddSubTask={openSubTodoModal}
                             onStatusChange={handleStatusChange}
+                            onDeleteGroup={async id => {
+                                try {
+                                    await KanbanAPI.deleteGroup(id)
+                                    setGroups(prev => prev.filter(g => g.group.id !== id))
+                                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                } catch (e) {
+                                    alert('Failed to delete group')
+                                }
+                            }}
                         />
                     ))}
                     <AddGroupButton onClick={() => setIsGroupModalOpen(true)}>
@@ -370,19 +402,9 @@ export function KanbanBoard() {
             <DragOverlay>
                 {activeItem ? <KanbanCard item={activeItem} /> : null}
                 {activeGroup ? (
-                    <div
-                        style={{
-                            width: 300,
-                            minWidth: 300,
-                            background: 'var(--colors-background, #fff)',
-                            border: '1px solid var(--colors-border, #e0e0e0)',
-                            borderRadius: 8,
-                            padding: 12,
-                            boxShadow: '0 8px 24px rgba(0,0,0,0.15)'
-                        }}
-                    >
-                        <h3 style={{ margin: 0 }}>{activeGroup.name}</h3>
-                    </div>
+                    <DragOverlayGroup>
+                        <h3>{activeGroup.name}</h3>
+                    </DragOverlayGroup>
                 ) : null}
             </DragOverlay>
 
@@ -408,7 +430,11 @@ export function KanbanBoard() {
                 </form>
             </Modal>
 
-            <Modal isOpen={isTodoModalOpen} onClose={() => setIsTodoModalOpen(false)} title={editingTodoId ? "Edit Todo Task" : "New Todo Task"}>
+            <Modal
+                isOpen={isTodoModalOpen}
+                onClose={() => setIsTodoModalOpen(false)}
+                title={editingTodoId ? 'Edit Todo Task' : 'New Todo Task'}
+            >
                 <form onSubmit={handleAddTodo}>
                     <FormGroup>
                         <label>Title</label>
@@ -452,7 +478,7 @@ export function KanbanBoard() {
                             Cancel
                         </Button>
                         <Button variant="primary" type="submit">
-                            {editingTodoId ? "Save Changes" : "Add Task"}
+                            {editingTodoId ? 'Save Changes' : 'Add Task'}
                         </Button>
                     </ButtonGroup>
                 </form>

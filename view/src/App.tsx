@@ -1,15 +1,14 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import styled from '@emotion/styled'
 import {
-    Heart,
     LayoutDashboard,
     Tags,
     CalendarCheck,
-    BarChart2,
     KanbanSquare,
     History as HistoryIcon,
     Menu,
-    X
+    Sun,
+    Moon
 } from 'lucide-react'
 import { KanbanBoard } from './components/kanban/KanbanBoard'
 import { EventHistory } from './components/tracker/EventHistory'
@@ -18,23 +17,36 @@ import { TodoHistory } from './components/kanban/TodoHistory'
 import { OverviewBoard } from './components/tracker/OverviewBoard'
 import { TrackerStatistic } from './components/tracker/TrackerStatistic'
 
+interface AppProps {
+    isDark: boolean
+    setIsDark: (v: boolean) => void
+}
+
 const Container = styled.div`
     display: flex;
+    flex-direction: column;
     height: 100vh;
     width: 100vw;
     background-color: ${({ theme }) => theme.colors.background};
     font-family: 'Misans', 'Nunito', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     position: relative;
+    transition: background-color ${props => props.theme.transitions.slow};
 `
 
 const Overlay = styled.div<{ open: boolean }>`
-    display: none;
-    @media (max-width: 768px) {
-        display: ${({ open }) => (open ? 'block' : 'none')};
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.4);
-        z-index: 19;
+    display: ${({ open }) => (open ? 'block' : 'none')};
+    position: fixed;
+    inset: 0;
+    background: ${({ theme }) => theme.colors.overlayDark};
+    z-index: 19;
+    animation: fadeIn 0.2s ease;
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+        to {
+            opacity: 1;
+        }
     }
 `
 
@@ -49,14 +61,16 @@ const Sidebar = styled.nav<{ open: boolean }>`
     box-shadow: ${({ theme }) => theme.shadows.soft};
     z-index: 20;
     flex-shrink: 0;
+    transition: all ${props => props.theme.transitions.slow};
 
     @media (max-width: 768px) {
         position: fixed;
         top: 0;
         left: 0;
         height: 100vh;
+        width: 280px;
         transform: ${({ open }) => (open ? 'translateX(0)' : 'translateX(-100%)')};
-        transition: transform 0.25s ease;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 `
 
@@ -66,12 +80,15 @@ const MobileHeader = styled.div`
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 12px 16px;
+        padding: 16px 20px;
         background-color: ${({ theme }) => theme.colors.surface};
         border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-        position: sticky;
+        position: fixed;
         top: 0;
-        z-index: 10;
+        left: 0;
+        right: 0;
+        z-index: 15;
+        box-shadow: ${({ theme }) => theme.shadows.card};
     }
 `
 
@@ -80,15 +97,50 @@ const Hamburger = styled.button`
     border: none;
     color: ${({ theme }) => theme.colors.text};
     cursor: pointer;
-    padding: 4px;
+    padding: 8px;
     display: flex;
     align-items: center;
+    border-radius: ${({ theme }) => theme.borderRadius.small};
+    transition: ${props => props.theme.transitions.fast};
+
+    &:hover {
+        background-color: ${({ theme }) => theme.colors.sidebarHover};
+    }
+    &:active {
+        transform: scale(0.95);
+    }
 `
 
 const MobileTitle = styled.span`
     font-size: 1.1rem;
     font-weight: 700;
     color: ${({ theme }) => theme.colors.text};
+`
+
+const ThemeToggle = styled.button`
+    background: none;
+    border: none;
+    color: ${({ theme }) => theme.colors.text};
+    cursor: pointer;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    border-radius: ${({ theme }) => theme.borderRadius.small};
+    transition: ${props => props.theme.transitions.fast};
+
+    &:hover {
+        background-color: ${({ theme }) => theme.colors.sidebarHover};
+        color: ${({ theme }) => theme.colors.primary};
+    }
+    &:active {
+        transform: scale(0.95);
+    }
+`
+
+const MainLayout = styled.div`
+    display: flex;
+    flex: 1;
+    overflow: hidden;
 `
 
 const Brand = styled.div`
@@ -99,10 +151,11 @@ const Brand = styled.div`
     color: ${({ theme }) => theme.colors.primary};
 
     h2 {
-        font-size: 1.25rem;
-        font-weight: 800;
-        letter-spacing: -0.5px;
+        font-size: 1.5rem;
+        font-weight: 700;
+        letter-spacing: 0.5px;
         margin: 0;
+        font-family: 'Times New Roman', 'Georgia', serif;
     }
 `
 
@@ -136,17 +189,33 @@ const NavItem = styled.a<{ active?: boolean }>`
     background-color: ${({ theme, active }) => (active ? theme.colors.sidebarHover : 'transparent')};
     font-weight: ${({ active }) => (active ? '700' : '600')};
     font-size: 0.95rem;
-    transition: ${({ theme }) => theme.transitions.default};
+    transition: ${props => props.theme.transitions.default};
     cursor: pointer;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    position: relative;
 
     &:hover {
         background-color: ${({ theme }) => theme.colors.sidebarHover};
         color: ${({ theme }) => theme.colors.primary};
         transform: translateX(4px);
     }
+    &:active {
+        transform: translateX(2px);
+    }
+`
+
+const NavItemIndicator = styled.span<{ active?: boolean }>`
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: ${({ active }) => (active ? '60%' : '0')};
+    background-color: ${({ theme }) => theme.colors.primary};
+    border-radius: 0 2px 2px 0;
+    transition: height 0.2s ease;
 `
 
 const MainContent = styled.main`
@@ -156,9 +225,11 @@ const MainContent = styled.main`
     display: flex;
     flex-direction: column;
     gap: ${({ theme }) => theme.spacing(3)};
+    transition: padding ${props => props.theme.transitions.default};
 
     @media (max-width: 768px) {
         padding: ${({ theme }) => theme.spacing(2)};
+        padding-top: 84px; /* Space for fixed mobile header */
     }
 `
 
@@ -167,12 +238,36 @@ const Header = styled.header`
     justify-content: space-between;
     align-items: center;
     padding-bottom: ${({ theme }) => theme.spacing(2)};
+    animation: slideDown 0.3s ease;
+
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
 
     h1 {
         font-size: 1.8rem;
         font-weight: 800;
         color: ${({ theme }) => theme.colors.text};
         margin: 0;
+        position: relative;
+
+        &::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 40px;
+            height: 3px;
+            background: ${({ theme }) => theme.colors.primary};
+            border-radius: 2px;
+        }
     }
 
     @media (max-width: 768px) {
@@ -182,101 +277,214 @@ const Header = styled.header`
     }
 `
 
+const ContentWrapper = styled.div<{ direction: 'up' | 'down' | 'none' }>`
+    animation: ${({ direction }) =>
+        direction === 'none'
+            ? 'none'
+            : direction === 'down'
+              ? 'slideInDown 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
+              : 'slideInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)'};
+
+    @keyframes slideInDown {
+        from {
+            opacity: 0;
+            transform: translateY(-30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @keyframes slideInUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+`
+
+const LoadingBar = styled.div<{ loading: boolean }>`
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: ${({ theme }) => theme.colors.primary};
+    transform: scaleX(${({ loading }) => (loading ? 1 : 0)});
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transform-origin: left;
+    z-index: 9999;
+    box-shadow: 0 0 10px ${({ theme }) => theme.colors.primary};
+`
+
 const tabTitles: Record<string, string> = {
     overview: 'Overview',
-    'tracker-statistic': 'Tracker Statistic',
+    'tracker-statistic': 'Tracker Kanban',
     'tracker-events': 'Events',
     'tracker-tags': 'Tags',
     'todo-board': 'To-Do Board',
     'todo-history': 'To-Do History'
 }
 
-function App() {
+const tabOrder = ['overview', 'tracker-statistic', 'tracker-events', 'tracker-tags', 'todo-board', 'todo-history']
+
+function App({ isDark, setIsDark }: AppProps) {
     const [activeTab, setActiveTab] = useState<
         'overview' | 'tracker-statistic' | 'tracker-events' | 'tracker-tags' | 'todo-board' | 'todo-history'
     >('overview')
     const [sidebarOpen, setSidebarOpen] = useState(false)
+    const [prevTab, setPrevTab] = useState<typeof activeTab>('overview')
+    const [loading, setLoading] = useState(false)
+
+    const [isSwitching, setIsSwitching] = useState(false)
+
+    // Close sidebar on resize to desktop
+    useEffect(() => {
+        const handleResize = () => {
+            if (window.innerWidth > 768) {
+                setSidebarOpen(false)
+            }
+        }
+        window.addEventListener('resize', handleResize)
+        return () => window.removeEventListener('resize', handleResize)
+    }, [])
 
     const navigate = (tab: typeof activeTab) => {
+        if (isSwitching || activeTab === tab) return
+        setIsSwitching(true)
+        setPrevTab(activeTab)
+        setLoading(true)
         setActiveTab(tab)
         setSidebarOpen(false)
+
+        // Simulate loading completion after a short delay
+        setTimeout(() => {
+            setLoading(false)
+            setIsSwitching(false)
+        }, 300)
+    }
+
+    const getAnimationDirection = (): 'up' | 'down' | 'none' => {
+        const prevIndex = tabOrder.indexOf(prevTab)
+        const currentIndex = tabOrder.indexOf(activeTab)
+        if (currentIndex > prevIndex) return 'down'
+        if (currentIndex < prevIndex) return 'up'
+        return 'none'
+    }
+
+    const toggleTheme = () => {
+        setIsDark(!isDark)
+    }
+
+    const renderContent = () => {
+        switch (activeTab) {
+            case 'overview':
+                return <OverviewBoard navigate={navigate} />
+            case 'tracker-statistic':
+                return <TrackerStatistic />
+            case 'tracker-events':
+                return <EventHistory />
+            case 'tracker-tags':
+                return <TagManager />
+            case 'todo-board':
+                return <KanbanBoard />
+            case 'todo-history':
+                return <TodoHistory />
+            default:
+                return null
+        }
     }
 
     return (
         <Container>
+            <LoadingBar loading={loading} />
             <MobileHeader>
-                <MobileTitle>{tabTitles[activeTab]}</MobileTitle>
                 <Hamburger onClick={() => setSidebarOpen(true)}>
                     <Menu size={24} />
                 </Hamburger>
+                <MobileTitle>{tabTitles[activeTab]}</MobileTitle>
+                <ThemeToggle onClick={toggleTheme}>{isDark ? <Sun size={20} /> : <Moon size={20} />}</ThemeToggle>
             </MobileHeader>
 
             <Overlay open={sidebarOpen} onClick={() => setSidebarOpen(false)} />
 
-            <Sidebar open={sidebarOpen}>
-                <Brand>
-                    <Heart fill="#ff8fb3" size={28} />
-                    <h2>Kawaii Tracker</h2>
-                    <Hamburger style={{ marginLeft: 'auto', display: 'none' }} onClick={() => setSidebarOpen(false)}>
-                        <X size={20} />
-                    </Hamburger>
-                </Brand>
+            <MainLayout>
+                <Sidebar open={sidebarOpen}>
+                    <Brand>
+                        <h2 style={{ fontFamily: "'Times New Roman', 'Georgia', serif" }}>Kawaii Tracker</h2>
+                    </Brand>
 
-                <NavMenu>
-                    <NavItem active={activeTab === 'overview'} onClick={() => navigate('overview')}>
-                        <LayoutDashboard size={20} />
-                        <span>Overview</span>
-                    </NavItem>
-                </NavMenu>
-
-                <SidebarSection>
-                    <h4>Habit Tracker</h4>
                     <NavMenu>
-                        <NavItem
-                            active={activeTab === 'tracker-statistic'}
-                            onClick={() => navigate('tracker-statistic')}
-                        >
-                            <BarChart2 size={20} />
-                            <span>Tracker Statistic</span>
-                        </NavItem>
-                        <NavItem active={activeTab === 'tracker-events'} onClick={() => navigate('tracker-events')}>
-                            <CalendarCheck size={20} />
-                            <span>Events</span>
-                        </NavItem>
-                        <NavItem active={activeTab === 'tracker-tags'} onClick={() => navigate('tracker-tags')}>
-                            <Tags size={20} />
-                            <span>Tags</span>
+                        <NavItem active={activeTab === 'overview'} onClick={() => navigate('overview')}>
+                            <NavItemIndicator active={activeTab === 'overview'} />
+                            <LayoutDashboard size={20} />
+                            <span>Overview</span>
                         </NavItem>
                     </NavMenu>
-                </SidebarSection>
 
-                <SidebarSection>
-                    <h4>To-Do</h4>
-                    <NavMenu>
-                        <NavItem active={activeTab === 'todo-board'} onClick={() => navigate('todo-board')}>
-                            <KanbanSquare size={20} />
-                            <span>Board</span>
-                        </NavItem>
-                        <NavItem active={activeTab === 'todo-history'} onClick={() => navigate('todo-history')}>
-                            <HistoryIcon size={20} />
-                            <span>History</span>
-                        </NavItem>
-                    </NavMenu>
-                </SidebarSection>
-            </Sidebar>
+                    <SidebarSection>
+                        <h4>Habit Tracker</h4>
+                        <NavMenu>
+                            <NavItem
+                                active={activeTab === 'tracker-statistic'}
+                                onClick={() => navigate('tracker-statistic')}
+                            >
+                                <NavItemIndicator active={activeTab === 'tracker-statistic'} />
+                                <KanbanSquare size={20} />
+                                <span>Tracker Kanban</span>
+                            </NavItem>
+                            <NavItem active={activeTab === 'tracker-events'} onClick={() => navigate('tracker-events')}>
+                                <NavItemIndicator active={activeTab === 'tracker-events'} />
+                                <CalendarCheck size={20} />
+                                <span>Events</span>
+                            </NavItem>
+                            <NavItem active={activeTab === 'tracker-tags'} onClick={() => navigate('tracker-tags')}>
+                                <NavItemIndicator active={activeTab === 'tracker-tags'} />
+                                <Tags size={20} />
+                                <span>Tags</span>
+                            </NavItem>
+                        </NavMenu>
+                    </SidebarSection>
 
-            <MainContent>
-                <Header>
-                    <h1>{tabTitles[activeTab]}</h1>
-                </Header>
+                    <SidebarSection>
+                        <h4>To-Do</h4>
+                        <NavMenu>
+                            <NavItem active={activeTab === 'todo-board'} onClick={() => navigate('todo-board')}>
+                                <NavItemIndicator active={activeTab === 'todo-board'} />
+                                <KanbanSquare size={20} />
+                                <span>Board</span>
+                            </NavItem>
+                            <NavItem active={activeTab === 'todo-history'} onClick={() => navigate('todo-history')}>
+                                <NavItemIndicator active={activeTab === 'todo-history'} />
+                                <HistoryIcon size={20} />
+                                <span>History</span>
+                            </NavItem>
+                        </NavMenu>
+                    </SidebarSection>
 
-                {activeTab === 'overview' && <OverviewBoard />}
-                {activeTab === 'tracker-statistic' && <TrackerStatistic />}
-                {activeTab === 'tracker-events' && <EventHistory />}
-                {activeTab === 'tracker-tags' && <TagManager />}
-                {activeTab === 'todo-board' && <KanbanBoard />}
-                {activeTab === 'todo-history' && <TodoHistory />}
-            </MainContent>
+                    {/* Desktop Theme Toggle */}
+                    <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'center' }}>
+                        <ThemeToggle onClick={toggleTheme} style={{ padding: '12px 24px' }}>
+                            {isDark ? <Sun size={22} /> : <Moon size={22} />}
+                            <span style={{ marginLeft: '8px', fontWeight: 600 }}>{isDark ? 'Light' : 'Dark'}</span>
+                        </ThemeToggle>
+                    </div>
+                </Sidebar>
+
+                <MainContent>
+                    <Header>
+                        <h1>{tabTitles[activeTab]}</h1>
+                    </Header>
+                    <ContentWrapper key={activeTab} direction={getAnimationDirection()}>
+                        {renderContent()}
+                    </ContentWrapper>
+                </MainContent>
+            </MainLayout>
         </Container>
     )
 }

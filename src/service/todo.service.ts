@@ -15,6 +15,21 @@ export class TodoService {
         return todoGroupRepo.findById(id)!
     }
 
+    deleteGroup(id: number): void {
+        const existing = todoGroupRepo.findById(id)
+        if (!existing) throw new Error(`Group ${id} not found`)
+
+        // Delete all todos in this group first
+        const allItems = todoRepo.findAllActive()
+        const groupItems = allItems.filter(item => item.todo_group_id === id)
+        for (const item of groupItems) {
+            todoRepo.delete(item.id)
+        }
+
+        // Then delete the group
+        todoGroupRepo.delete(id)
+    }
+
     listGroups(): { group: TodoGroup; items: TodoItem[] }[] {
         const groups = todoGroupRepo.findAllActive()
         const allItems = todoRepo.findAllActive()
@@ -55,7 +70,7 @@ export class TodoService {
                 if (pending.length > 0) {
                     throw new Error(
                         `Cannot complete todo ${id}: ${pending.length} sub-todo(s) still pending. ` +
-                        `Incomplete: ${pending.map(p => `#${p.id} "${p.title}"`).join(', ')}`
+                            `Incomplete: ${pending.map(p => `#${p.id} "${p.title}"`).join(', ')}`
                     )
                 }
             }

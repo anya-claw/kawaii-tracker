@@ -2,8 +2,9 @@ import styled from '@emotion/styled'
 import type { TodoItem } from '../../shared/api/schema'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Check, Plus, Clock } from 'lucide-react'
+import { GripVertical, Check, Plus, Clock, ArrowRight, ArrowUp, ArrowDown, Minus } from 'lucide-react'
 import { KanbanAPI } from '../../shared/api'
+import { useState } from 'react'
 
 const CardContainer = styled.div<{ isDragging: boolean; isDone: boolean }>`
     background-color: ${({ theme }) => theme.colors.surface};
@@ -11,9 +12,21 @@ const CardContainer = styled.div<{ isDragging: boolean; isDone: boolean }>`
     border-radius: ${({ theme }) => theme.borderRadius.small};
     padding: ${({ theme }) => theme.spacing(2)};
     margin-bottom: ${({ theme }) => theme.spacing(1.5)};
-    box-shadow: ${({ theme, isDragging }) => (isDragging ? theme.shadows.hover : theme.shadows.soft)};
+    box-shadow: ${({ theme, isDragging }) => (isDragging ? theme.shadows.hover : theme.shadows.card)};
     opacity: ${({ isDragging, isDone }) => (isDragging ? 0.5 : isDone ? 0.6 : 1)};
-    cursor: grab;
+    transition: ${props => props.theme.transitions.default};
+    animation: fadeIn 0.2s ease;
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: scale(0.98);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
 
     display: flex;
     align-items: flex-start;
@@ -21,6 +34,12 @@ const CardContainer = styled.div<{ isDragging: boolean; isDone: boolean }>`
 
     &:hover {
         box-shadow: ${({ theme }) => theme.shadows.hover};
+        border-color: ${({ theme }) => theme.colors.primary}30;
+    }
+
+    @media (max-width: 768px) {
+        padding: ${({ theme }) => theme.spacing(1.5)};
+        margin-bottom: ${({ theme }) => theme.spacing(1)};
     }
 `
 
@@ -33,6 +52,59 @@ const DragHandle = styled.div`
     cursor: grab;
     &:active {
         cursor: grabbing;
+    }
+
+    @media (max-width: 768px) {
+        display: none; /* Hide drag handle on mobile */
+    }
+`
+
+const MobileActions = styled.div`
+    display: none;
+    @media (max-width: 768px) {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-left: auto;
+    }
+`
+
+const MobileActionBtn = styled.button<{ variant?: 'default' | 'success' | 'warning' }>`
+    background: ${({ theme, variant }) =>
+        variant === 'success'
+            ? theme.colors.success + '20'
+            : variant === 'warning'
+              ? theme.colors.danger + '20'
+              : theme.colors.surfaceAlt};
+    color: ${({ theme, variant }) =>
+        variant === 'success'
+            ? theme.colors.success
+            : variant === 'warning'
+              ? theme.colors.danger
+              : theme.colors.textMuted};
+    border: 1px solid
+        ${({ theme, variant }) =>
+            variant === 'success'
+                ? theme.colors.success + '40'
+                : variant === 'warning'
+                  ? theme.colors.danger + '40'
+                  : theme.colors.border};
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: ${props => props.theme.transitions.fast};
+
+    &:hover {
+        background: ${({ theme, variant }) =>
+            variant === 'success'
+                ? theme.colors.success + '30'
+                : variant === 'warning'
+                  ? theme.colors.danger + '30'
+                  : theme.colors.sidebarHover};
     }
 `
 
@@ -52,12 +124,12 @@ const CheckboxWrapper = styled.div<{ checked: boolean }>`
 
     &:hover {
         border-color: ${({ theme }) => theme.colors.primary};
+        transform: scale(1.05);
     }
 `
 
 const CheckIcon = styled(Check)`
     color: #fff;
-    size: 14;
 `
 
 const Content = styled.div<{ isDone: boolean }>`
@@ -66,7 +138,9 @@ const Content = styled.div<{ isDone: boolean }>`
     flex-direction: column;
     gap: 4px;
 
-    ${({ isDone }) => isDone && `
+    ${({ isDone }) =>
+        isDone &&
+        `
         opacity: 0.6;
     `}
 `
@@ -75,7 +149,9 @@ const Title = styled.h4<{ isDone: boolean }>`
     margin: 0;
     font-size: 0.95rem;
     color: ${({ theme }) => theme.colors.text};
-    ${({ isDone }) => isDone && `
+    ${({ isDone }) =>
+        isDone &&
+        `
         text-decoration: line-through;
         opacity: 0.7;
     `}
@@ -101,16 +177,19 @@ const SubTaskItem = styled.div<{ isDone: boolean }>`
     font-size: 0.85rem;
     color: ${({ theme }) => theme.colors.text};
     padding: 4px 6px;
-    background-color: rgba(0,0,0,0.02);
+    background-color: ${({ theme }) => theme.colors.surfaceAlt};
     border-radius: 4px;
-    
-    ${({ isDone }) => isDone && `
+    transition: ${props => props.theme.transitions.fast};
+
+    ${({ isDone }) =>
+        isDone &&
+        `
         text-decoration: line-through;
         opacity: 0.6;
     `}
 
     &:hover {
-        background-color: rgba(0,0,0,0.04);
+        background-color: ${({ theme }) => theme.colors.sidebarHover};
     }
 `
 
@@ -122,6 +201,8 @@ const AddSubTaskBtn = styled.div`
     color: ${({ theme }) => theme.colors.textMuted};
     margin-top: 4px;
     cursor: pointer;
+    transition: ${props => props.theme.transitions.fast};
+
     &:hover {
         color: ${({ theme }) => theme.colors.primary};
     }
@@ -139,22 +220,40 @@ const DueDateBadge = styled.div<{ isOverdue: boolean }>`
     align-items: center;
     gap: 3px;
     font-size: 0.7rem;
-    color: ${({ theme, isOverdue }) => isOverdue ? theme.colors.danger : theme.colors.textMuted};
-    background-color: ${({ theme, isOverdue }) => isOverdue ? 'rgba(255, 107, 107, 0.1)' : 'transparent'};
+    color: ${({ theme, isOverdue }) => (isOverdue ? theme.colors.danger : theme.colors.textMuted)};
+    background-color: ${({ isOverdue, theme }) => (isOverdue ? theme.colors.danger + '15' : 'transparent')};
     padding: 2px 4px;
     border-radius: 4px;
 `
 
 const PriorityBadge = styled.span<{ priority: string }>`
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
     font-size: 0.7rem;
     padding: 2px 6px;
     border-radius: 4px;
-    font-weight: bold;
-    align-self: flex-start;
+    font-weight: 700;
     background-color: ${({ theme, priority }) =>
-        priority === 'high' ? theme.colors.danger : priority === 'medium' ? '#ffd166' : theme.colors.secondary};
-    color: #fff;
+        priority === 'high'
+            ? theme.colors.danger + '30'
+            : priority === 'medium'
+              ? '#ffd16630'
+              : theme.colors.secondary + '30'};
+    color: ${({ theme, priority }) =>
+        priority === 'high' ? theme.colors.danger : priority === 'medium' ? '#d4a000' : theme.colors.secondary};
 `
+
+const getPriorityIcon = (priority: string) => {
+    switch (priority) {
+        case 'high':
+            return <ArrowUp size={10} />
+        case 'low':
+            return <ArrowDown size={10} />
+        default:
+            return <Minus size={10} />
+    }
+}
 
 interface Props {
     item: TodoItem
@@ -163,13 +262,26 @@ interface Props {
     onClick?: () => void
     onAddSubTask?: () => void
     onEditSubTask?: (item: TodoItem) => void
+    allGroups?: { id: number; name: string }[]
+    onMoveToGroup?: (todoId: number, groupId: number) => void
 }
 
-export function KanbanCard({ item, subItems = [], onStatusChange, onClick, onAddSubTask, onEditSubTask }: Props) {
+export function KanbanCard({
+    item,
+    subItems = [],
+    onStatusChange,
+    onClick,
+    onAddSubTask,
+    onEditSubTask,
+    allGroups = [],
+    onMoveToGroup
+}: Props) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
         id: item.id.toString(),
         data: { type: 'TodoItem', item }
     })
+
+    const [showMoveMenu, setShowMoveMenu] = useState(false)
 
     const style = {
         transform: CSS.Transform.toString(transform),
@@ -186,9 +298,37 @@ export function KanbanCard({ item, subItems = [], onStatusChange, onClick, onAdd
         try {
             await KanbanAPI.updateTodo(item.id, { status: newStatus })
             onStatusChange?.(item.id, newStatus)
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('Failed to toggle status', err)
-            alert(err.message || 'Failed to update status')
+            const message = err instanceof Error ? err.message : 'Failed to update status'
+            alert(message)
+        }
+    }
+
+    const handleMobileStatusChange = async (newStatus: 'pending' | 'doing' | 'done') => {
+        try {
+            await KanbanAPI.updateTodo(item.id, { status: newStatus })
+            onStatusChange?.(item.id, newStatus)
+        } catch (err: unknown) {
+            console.error('Failed to change status', err)
+            const message = err instanceof Error ? err.message : 'Failed to update status'
+            alert(message)
+        }
+    }
+
+    const handleMoveToGroup = async (groupId: number) => {
+        setShowMoveMenu(false)
+        if (onMoveToGroup) {
+            onMoveToGroup(item.id, groupId)
+        } else {
+            try {
+                await KanbanAPI.updateTodo(item.id, { todo_group_id: groupId })
+                onStatusChange?.(item.id, item.status) // Trigger refresh
+            } catch (err: unknown) {
+                console.error('Failed to move', err)
+                const message = err instanceof Error ? err.message : 'Failed to move task'
+                alert(message)
+            }
         }
     }
 
@@ -205,6 +345,7 @@ export function KanbanCard({ item, subItems = [], onStatusChange, onClick, onAdd
                 {item.description && <Description>{item.description}</Description>}
                 <MetaRow>
                     <PriorityBadge priority={item.priority || 'low'}>
+                        {getPriorityIcon(item.priority || 'low')}
                         {(item.priority || 'low').toUpperCase()}
                     </PriorityBadge>
                     {item.due_date && (
@@ -218,18 +359,26 @@ export function KanbanCard({ item, subItems = [], onStatusChange, onClick, onAdd
                 {(subItems.length > 0 || onAddSubTask) && (
                     <SubTasksContainer onClick={e => e.stopPropagation()}>
                         {subItems.map(sub => (
-                            <SubTaskItem key={sub.id} isDone={sub.status === 'done'} onClick={() => onEditSubTask?.(sub)}>
-                                <CheckboxWrapper 
+                            <SubTaskItem
+                                key={sub.id}
+                                isDone={sub.status === 'done'}
+                                onClick={() => onEditSubTask?.(sub)}
+                            >
+                                <CheckboxWrapper
                                     style={{ width: 14, height: 14, minWidth: 14 }}
-                                    checked={sub.status === 'done'} 
-                                    onClick={(e) => {
+                                    checked={sub.status === 'done'}
+                                    onClick={e => {
                                         e.stopPropagation()
                                         const newSt = sub.status === 'done' ? 'pending' : 'done'
-                                        KanbanAPI.updateTodo(sub.id, { status: newSt }).then(() => {
-                                            onStatusChange?.(sub.id, newSt)
-                                        }).catch((err) => {
-                                            alert(err.message || 'Failed to update status')
-                                        })
+                                        KanbanAPI.updateTodo(sub.id, { status: newSt })
+                                            .then(() => {
+                                                onStatusChange?.(sub.id, newSt)
+                                            })
+                                            .catch(err => {
+                                                const message =
+                                                    err instanceof Error ? err.message : 'Failed to update status'
+                                                alert(message)
+                                            })
                                     }}
                                 >
                                     {sub.status === 'done' && <CheckIcon size={10} />}
@@ -237,14 +386,71 @@ export function KanbanCard({ item, subItems = [], onStatusChange, onClick, onAdd
                                 {sub.title}
                             </SubTaskItem>
                         ))}
-                        {onAddSubTask && !isDone && (
-                            <AddSubTaskBtn onClick={(e) => { e.stopPropagation(); onAddSubTask(); }}>
-                                <Plus size={12} /> Add subtask
+                        {onAddSubTask && (
+                            <AddSubTaskBtn onClick={onAddSubTask}>
+                                <Plus size={12} /> Add Subtask
                             </AddSubTaskBtn>
                         )}
                     </SubTasksContainer>
                 )}
             </Content>
+
+            {/* Mobile Actions */}
+            <MobileActions onClick={e => e.stopPropagation()}>
+                {item.status !== 'done' && (
+                    <MobileActionBtn variant="success" onClick={() => handleMobileStatusChange('done')}>
+                        <Check size={12} /> Done
+                    </MobileActionBtn>
+                )}
+                {item.status === 'done' && (
+                    <MobileActionBtn onClick={() => handleMobileStatusChange('pending')}>Undo</MobileActionBtn>
+                )}
+                {allGroups.length > 1 && (
+                    <div style={{ position: 'relative' }}>
+                        <MobileActionBtn onClick={() => setShowMoveMenu(!showMoveMenu)}>
+                            <ArrowRight size={12} /> Move
+                        </MobileActionBtn>
+                        {showMoveMenu && (
+                            <div
+                                style={{
+                                    position: 'absolute',
+                                    right: 0,
+                                    top: '100%',
+                                    backgroundColor: 'white',
+                                    border: '1px solid #e0e0e0',
+                                    borderRadius: '8px',
+                                    padding: '4px',
+                                    zIndex: 10,
+                                    minWidth: '120px',
+                                    boxShadow: '0 2px 12px rgba(0,0,0,0.1)'
+                                }}
+                            >
+                                {allGroups
+                                    .filter(g => g.id !== item.todo_group_id)
+                                    .map(g => (
+                                        <button
+                                            key={g.id}
+                                            onClick={() => handleMoveToGroup(g.id)}
+                                            style={{
+                                                display: 'block',
+                                                width: '100%',
+                                                padding: '8px 12px',
+                                                background: 'transparent',
+                                                border: 'none',
+                                                borderRadius: '4px',
+                                                fontSize: '0.85rem',
+                                                textAlign: 'left',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            {g.name}
+                                        </button>
+                                    ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </MobileActions>
         </CardContainer>
     )
 }

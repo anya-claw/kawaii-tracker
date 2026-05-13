@@ -216,6 +216,16 @@ async function main() {
         }
     })
 
+    app.delete('/api/groups/:id', async req => {
+        try {
+            const { id } = req.params as { id: string }
+            todoService.deleteGroup(Number(id))
+            return { ok: true }
+        } catch (e: any) {
+            return { ok: false, error: e.message }
+        }
+    })
+
     app.post('/api/todos', async req => {
         try {
             const todo = todoService.addTodo(req.body as any)

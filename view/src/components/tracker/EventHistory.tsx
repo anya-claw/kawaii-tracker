@@ -3,6 +3,8 @@ import styled from '@emotion/styled'
 import { Calendar, Tag as TagIcon, Plus, Trash2, ChevronRight, ChevronDown, Check, Circle } from 'lucide-react'
 import { TrackerAPI } from '../../shared/api'
 import type { TrackerEvent, DashboardStat } from '../../shared/api/schema'
+import { Modal } from '../shared/Modal'
+import { FormGroup, ButtonGroup, Button } from '../shared/Form'
 
 const Container = styled.div`
     display: flex;
@@ -15,6 +17,13 @@ const FilterBar = styled.div`
     gap: ${({ theme }) => theme.spacing(2)};
     align-items: center;
     flex-wrap: wrap;
+
+    @media (max-width: 768px) {
+        gap: ${({ theme }) => theme.spacing(1)};
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding-bottom: ${({ theme }) => theme.spacing(1)};
+    }
 `
 
 const FilterBtn = styled.button<{ active: boolean }>`
@@ -23,12 +32,19 @@ const FilterBtn = styled.button<{ active: boolean }>`
     font-size: 0.9rem;
     font-weight: 600;
     transition: ${({ theme }) => theme.transitions.default};
-    background-color: ${({ theme, active }) => (active ? theme.colors.primary : 'transparent')};
+    background-color: ${({ theme, active }) => (active ? theme.colors.primary : theme.colors.surface)};
     color: ${({ theme, active }) => (active ? 'white' : theme.colors.textMuted)};
     border: 1px solid ${({ theme, active }) => (active ? theme.colors.primary : theme.colors.border)};
+    white-space: nowrap;
 
     &:hover {
         background-color: ${({ theme, active }) => (active ? theme.colors.primaryHover : theme.colors.sidebarHover)};
+        transform: translateY(-1px);
+    }
+
+    @media (max-width: 768px) {
+        font-size: 0.85rem;
+        padding: 6px 12px;
     }
 `
 
@@ -40,6 +56,11 @@ const TagSelect = styled.select`
     font-size: 0.9rem;
     background-color: ${({ theme }) => theme.colors.surface};
     color: ${({ theme }) => theme.colors.text};
+    transition: ${props => props.theme.transitions.default};
+
+    &:focus {
+        border-color: ${({ theme }) => theme.colors.primary};
+    }
 `
 
 const AddBar = styled.div`
@@ -50,6 +71,35 @@ const AddBar = styled.div`
     background-color: ${({ theme }) => theme.colors.surface};
     border-radius: ${({ theme }) => theme.borderRadius.medium};
     border: 1px solid ${({ theme }) => theme.colors.border};
+
+    @media (max-width: 768px) {
+        display: none; /* Use modal on mobile */
+    }
+`
+
+const MobileAddBtn = styled.button`
+    display: none;
+    @media (max-width: 768px) {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 12px 16px;
+        background-color: ${({ theme }) => theme.colors.primary};
+        color: white;
+        border-radius: ${({ theme }) => theme.borderRadius.medium};
+        font-weight: 700;
+        font-size: 0.95rem;
+        transition: ${props => props.theme.transitions.default};
+
+        &:hover {
+            background-color: ${({ theme }) => theme.colors.primaryHover};
+            transform: scale(1.02);
+        }
+        &:active {
+            transform: scale(0.98);
+        }
+    }
 `
 
 const AddInput = styled.input`
@@ -59,10 +109,13 @@ const AddInput = styled.input`
     border: 2px solid ${({ theme }) => theme.colors.border};
     outline: none;
     font-size: 0.9rem;
+    background-color: ${({ theme }) => theme.colors.surface};
+    color: ${({ theme }) => theme.colors.text};
     transition: ${({ theme }) => theme.transitions.default};
 
     &:focus {
         border-color: ${({ theme }) => theme.colors.primary};
+        box-shadow: 0 0 0 3px ${({ theme }) => theme.colors.sidebarHover};
     }
 `
 
@@ -80,7 +133,60 @@ const AddBtn = styled.button`
 
     &:hover {
         background-color: ${({ theme }) => theme.colors.primaryHover};
+        transform: translateY(-1px);
     }
+    &:active {
+        transform: translateY(0);
+    }
+`
+
+const EventList = styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: ${({ theme }) => theme.spacing(2)};
+`
+
+const TagSection = styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: ${({ theme }) => theme.spacing(1)};
+`
+
+const TagHeader = styled.div`
+    display: flex;
+    align-items: center;
+    gap: ${({ theme }) => theme.spacing(1)};
+    padding: ${({ theme }) => theme.spacing(1)} ${({ theme }) => theme.spacing(2)};
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: ${({ theme }) => theme.colors.primary};
+    background-color: ${({ theme }) => theme.colors.surfaceAlt};
+    border-radius: ${({ theme }) => theme.borderRadius.small};
+    animation: fadeIn 0.2s ease;
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+        to {
+            opacity: 1;
+        }
+    }
+`
+
+const TagCount = styled.span`
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background-color: ${({ theme }) => theme.colors.sidebarHover};
+    color: ${({ theme }) => theme.colors.textMuted};
+    font-weight: 700;
+`
+
+const TagEvents = styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: ${({ theme }) => theme.spacing(0.5)};
 `
 
 const EventGroup = styled.div`
@@ -88,6 +194,24 @@ const EventGroup = styled.div`
     border-radius: ${({ theme }) => theme.borderRadius.medium};
     border: 1px solid ${({ theme }) => theme.colors.border};
     overflow: hidden;
+    transition: ${props => props.theme.transitions.default};
+    animation: fadeInUp 0.3s ease;
+
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    &:hover {
+        border-color: ${({ theme }) => theme.colors.primary}40;
+        box-shadow: ${({ theme }) => theme.shadows.card};
+    }
 `
 
 const MainRow = styled.div`
@@ -101,15 +225,11 @@ const MainRow = styled.div`
     &:hover {
         background-color: ${({ theme }) => theme.colors.sidebarHover};
     }
-`
 
-const MainTag = styled.span`
-    font-weight: 700;
-    font-size: 0.95rem;
-    color: ${({ theme }) => theme.colors.text};
-    display: flex;
-    align-items: center;
-    gap: 6px;
+    @media (max-width: 768px) {
+        padding: ${({ theme }) => theme.spacing(1.5)} ${({ theme }) => theme.spacing(2)};
+        gap: ${({ theme }) => theme.spacing(1.5)};
+    }
 `
 
 const MainTagBadge = styled.span`
@@ -117,7 +237,7 @@ const MainTagBadge = styled.span`
     padding: 1px 6px;
     border-radius: 10px;
     background-color: ${({ theme }) => theme.colors.sidebarHover};
-    color: ${({ theme }) => theme.colors.primaryHover};
+    color: ${({ theme }) => theme.colors.primary};
     font-weight: 700;
     text-transform: uppercase;
 `
@@ -136,8 +256,9 @@ const ProgressBadge = styled.span<{ done: boolean }>`
     font-weight: 700;
     padding: 2px 10px;
     border-radius: 12px;
-    color: ${({ done }) => (done ? 'white' : '#ff7aa5')};
+    color: ${({ done, theme }) => (done ? 'white' : theme.colors.primary)};
     background-color: ${({ done, theme }) => (done ? theme.colors.success : theme.colors.sidebarHover)};
+    transition: ${props => props.theme.transitions.fast};
 `
 
 const SubRow = styled.div`
@@ -147,21 +268,17 @@ const SubRow = styled.div`
     padding-left: ${({ theme }) => theme.spacing(6)};
     gap: ${({ theme }) => theme.spacing(2)};
     border-top: 1px dashed ${({ theme }) => theme.colors.border};
-    background-color: #fafbfc;
+    background-color: ${({ theme }) => theme.colors.surfaceAlt};
     transition: ${({ theme }) => theme.transitions.default};
 
     &:hover {
         background-color: ${({ theme }) => theme.colors.sidebarHover};
     }
-`
 
-const SubTag = styled.span`
-    font-weight: 500;
-    font-size: 0.85rem;
-    color: ${({ theme }) => theme.colors.textMuted};
-    display: flex;
-    align-items: center;
-    gap: 4px;
+    @media (max-width: 768px) {
+        padding-left: ${({ theme }) => theme.spacing(4)};
+        padding: ${({ theme }) => theme.spacing(1)} ${({ theme }) => theme.spacing(2)};
+    }
 `
 
 const SubDetail = styled.span`
@@ -177,23 +294,28 @@ const MoodSpan = styled.span`
 const TimeStamp = styled.span`
     font-size: 0.75rem;
     color: ${({ theme }) => theme.colors.textMuted};
+
+    @media (max-width: 768px) {
+        font-size: 0.7rem;
+    }
 `
 
 const StatusIcon = styled.span<{ done: boolean }>`
     display: flex;
     align-items: center;
     color: ${({ done, theme }) => (done ? theme.colors.success : theme.colors.textMuted)};
+    transition: ${props => props.theme.transitions.fast};
 `
 
 const DeleteBtn = styled.button`
     background: transparent;
     color: ${({ theme }) => theme.colors.textMuted};
-    padding: 2px;
-    border-radius: 4px;
+    padding: 4px;
+    border-radius: ${({ theme }) => theme.borderRadius.small};
     display: flex;
     align-items: center;
     opacity: 0;
-    transition: opacity 0.15s;
+    transition: ${props => props.theme.transitions.fast};
 
     ${MainRow}:hover &, ${SubRow}:hover & {
         opacity: 1;
@@ -201,6 +323,7 @@ const DeleteBtn = styled.button`
 
     &:hover {
         color: ${({ theme }) => theme.colors.danger};
+        background-color: ${({ theme }) => theme.colors.danger}20;
     }
 `
 
@@ -213,6 +336,11 @@ const SingleEventRow = styled.div`
 
     &:hover {
         background-color: ${({ theme }) => theme.colors.sidebarHover};
+    }
+
+    @media (max-width: 768px) {
+        padding: ${({ theme }) => theme.spacing(1.5)} ${({ theme }) => theme.spacing(2)};
+        gap: ${({ theme }) => theme.spacing(1.5)};
     }
 `
 
@@ -243,6 +371,7 @@ export function EventHistory() {
     const [addDetails, setAddDetails] = useState('')
     const [addMood, setAddMood] = useState('')
     const [expandedMain, setExpandedMain] = useState<Set<number>>(new Set())
+    const [mobileModalOpen, setMobileModalOpen] = useState(false)
 
     const loadData = () => {
         Promise.all([TrackerAPI.getEvents(range), TrackerAPI.getDashboard(), TrackerAPI.getTags()])
@@ -315,8 +444,10 @@ export function EventHistory() {
                 details: addDetails.trim() || undefined,
                 mood: addMood.trim() || undefined
             })
+            setAddTag('')
             setAddDetails('')
             setAddMood('')
+            setMobileModalOpen(false)
             loadData()
         } catch (e) {
             console.error(e)
@@ -342,14 +473,14 @@ export function EventHistory() {
         <Container>
             {/* Filter Bar */}
             <FilterBar>
-                <Calendar size={18} color="#9aa0a6" />
+                <Calendar size={18} />
                 {RANGES.map(r => (
                     <FilterBtn key={r.value} active={range === r.value} onClick={() => setRange(r.value)}>
                         {r.label}
                     </FilterBtn>
                 ))}
-                <div style={{ width: '1px', height: '24px', backgroundColor: '#fae3ec', margin: '0 8px' }} />
-                <TagIcon size={18} color="#9aa0a6" />
+                <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border)', margin: '0 8px' }} />
+                <TagIcon size={18} />
                 <TagSelect value={selectedTag} onChange={e => setSelectedTag(e.target.value)}>
                     <option value="all">All Tags</option>
                     {tags.map(t => (
@@ -360,7 +491,7 @@ export function EventHistory() {
                 </TagSelect>
             </FilterBar>
 
-            {/* Add Event Input */}
+            {/* Desktop Add Bar */}
             <AddBar>
                 <TagSelect value={addTag} onChange={e => setAddTag(e.target.value)} style={{ minWidth: '120px' }}>
                     <option value="">-- Tag --</option>
@@ -386,105 +517,156 @@ export function EventHistory() {
                 </AddBtn>
             </AddBar>
 
-            {/* Event Groups */}
-            {grouped.length === 0 ? (
-                <p style={{ color: '#9aa0a6', textAlign: 'center', padding: '32px 0' }}>No events found.</p>
-            ) : (
-                grouped.map(group => (
-                    <div key={group.tag} style={{ marginBottom: '8px' }}>
-                        {group.mainEvents.map(entry => {
-                            const { main, subs, dashboard: dash } = entry
-                            const isRecurring = main.recurring_mark === 1
-                            const isExpanded = expandedMain.has(main.id)
+            {/* Mobile Add Button */}
+            <MobileAddBtn onClick={() => setMobileModalOpen(true)}>
+                <Plus size={20} /> Add Event
+            </MobileAddBtn>
 
-                            if (!isRecurring) {
-                                // Single (one-off) event
-                                return (
-                                    <EventGroup key={main.id} style={{ marginBottom: '8px' }}>
-                                        <SingleEventRow>
-                                            <StatusIcon done={!!main.completed_at}>
-                                                {main.completed_at ? <Check size={16} /> : <Circle size={16} />}
-                                            </StatusIcon>
-                                            <MainTag>{main.tag_name}</MainTag>
-                                            <MainDetail>{main.details || ''}</MainDetail>
-                                            {main.mood && <MoodSpan>{main.mood}</MoodSpan>}
-                                            <TimeStamp>
-                                                {main.completed_at
-                                                    ? formatTime(main.completed_at)
-                                                    : formatTime(main.created_at)}
-                                            </TimeStamp>
-                                            <DeleteBtn onClick={() => handleDelete(main.id)}>
-                                                <Trash2 size={14} />
-                                            </DeleteBtn>
-                                        </SingleEventRow>
-                                    </EventGroup>
-                                )
-                            }
+            {/* Mobile Add Modal */}
+            <Modal isOpen={mobileModalOpen} onClose={() => setMobileModalOpen(false)} title="Add New Event">
+                <FormGroup>
+                    <label>Tag</label>
+                    <select value={addTag} onChange={e => setAddTag(e.target.value)}>
+                        <option value="">-- Select Tag --</option>
+                        {tags.map(t => (
+                            <option key={t.tag} value={t.tag}>
+                                {t.tag}
+                            </option>
+                        ))}
+                    </select>
+                </FormGroup>
+                <FormGroup>
+                    <label>Details</label>
+                    <input
+                        placeholder="What happened? (optional)"
+                        value={addDetails}
+                        onChange={e => setAddDetails(e.target.value)}
+                    />
+                </FormGroup>
+                <FormGroup>
+                    <label>Mood</label>
+                    <input
+                        placeholder="😊 🎉 😤 (optional emoji)"
+                        value={addMood}
+                        onChange={e => setAddMood(e.target.value)}
+                    />
+                </FormGroup>
+                <ButtonGroup>
+                    <Button onClick={() => setMobileModalOpen(false)}>Cancel</Button>
+                    <Button variant="primary" onClick={handleAdd} disabled={!addTag.trim()}>
+                        <Plus size={16} style={{ marginRight: '6px' }} /> Add Event
+                    </Button>
+                </ButtonGroup>
+            </Modal>
 
-                            // Recurring main event with sub-events
-                            const target = dash?.target || 1
-                            const completed = subs.length
-                            const isDone = !!main.completed_at
+            {/* Event List - Grouped by Tag */}
+            <EventList>
+                {grouped.length === 0 ? (
+                    <p style={{ color: 'var(--textMuted)', textAlign: 'center', padding: '32px 0' }}>
+                        No events found.
+                    </p>
+                ) : (
+                    grouped.map(group => (
+                        <TagSection key={group.tag}>
+                            <TagHeader>
+                                <TagIcon size={14} />
+                                <span>{group.tag}</span>
+                                <TagCount>{group.mainEvents.length}</TagCount>
+                            </TagHeader>
+                            <TagEvents>
+                                {group.mainEvents.map(entry => {
+                                    const { main, subs, dashboard: dash } = entry
+                                    const isRecurring = main.recurring_mark === 1
+                                    const isExpanded = expandedMain.has(main.id)
 
-                            return (
-                                <EventGroup key={main.id} style={{ marginBottom: '8px' }}>
-                                    <MainRow onClick={() => toggleExpand(main.id)}>
-                                        {subs.length > 0 ? (
-                                            isExpanded ? (
-                                                <ChevronDown size={16} color="#9aa0a6" />
-                                            ) : (
-                                                <ChevronRight size={16} color="#9aa0a6" />
-                                            )
-                                        ) : (
-                                            <span style={{ width: '16px' }} />
-                                        )}
-                                        <StatusIcon done={isDone}>
-                                            {isDone ? <Check size={16} /> : <Circle size={16} />}
-                                        </StatusIcon>
-                                        <MainTag>{main.tag_name}</MainTag>
-                                        <MainTagBadge>{dash?.type || 'recurring'}</MainTagBadge>
-                                        <MainDetail>{main.details || ''}</MainDetail>
-                                        <ProgressBadge done={isDone}>
-                                            {isDone ? `✓ ${formatTime(main.completed_at!)}` : `${completed}/${target}`}
-                                        </ProgressBadge>
-                                        <DeleteBtn
-                                            onClick={e => {
-                                                e.stopPropagation()
-                                                handleDelete(main.id)
-                                            }}
-                                        >
-                                            <Trash2 size={14} />
-                                        </DeleteBtn>
-                                    </MainRow>
+                                    if (!isRecurring) {
+                                        return (
+                                            <EventGroup key={main.id}>
+                                                <SingleEventRow>
+                                                    <StatusIcon done={!!main.completed_at}>
+                                                        {main.completed_at ? <Check size={16} /> : <Circle size={16} />}
+                                                    </StatusIcon>
+                                                    <MainDetail>{main.details || '-'}</MainDetail>
+                                                    {main.mood && <MoodSpan>{main.mood}</MoodSpan>}
+                                                    <TimeStamp>
+                                                        {main.completed_at
+                                                            ? formatTime(main.completed_at)
+                                                            : formatTime(main.created_at)}
+                                                    </TimeStamp>
+                                                    <DeleteBtn onClick={() => handleDelete(main.id)}>
+                                                        <Trash2 size={14} />
+                                                    </DeleteBtn>
+                                                </SingleEventRow>
+                                            </EventGroup>
+                                        )
+                                    }
 
-                                    {isExpanded &&
-                                        subs.map(sub => (
-                                            <SubRow key={sub.id}>
-                                                <StatusIcon done={!!sub.completed_at}>
-                                                    {sub.completed_at ? <Check size={14} /> : <Circle size={14} />}
+                                    const target = dash?.target || 1
+                                    const completed = subs.length
+                                    const isDone = !!main.completed_at
+
+                                    return (
+                                        <EventGroup key={main.id}>
+                                            <MainRow onClick={() => toggleExpand(main.id)}>
+                                                {subs.length > 0 ? (
+                                                    isExpanded ? (
+                                                        <ChevronDown size={16} />
+                                                    ) : (
+                                                        <ChevronRight size={16} />
+                                                    )
+                                                ) : (
+                                                    <span style={{ width: '16px' }} />
+                                                )}
+                                                <StatusIcon done={isDone}>
+                                                    {isDone ? <Check size={16} /> : <Circle size={16} />}
                                                 </StatusIcon>
-                                                <SubTag>
-                                                    <TagIcon size={12} />
-                                                    {sub.tag_name}
-                                                </SubTag>
-                                                <SubDetail>{sub.details || ''}</SubDetail>
-                                                {sub.mood && <MoodSpan>{sub.mood}</MoodSpan>}
-                                                <TimeStamp>
-                                                    {sub.completed_at
-                                                        ? formatTime(sub.completed_at)
-                                                        : formatTime(sub.created_at)}
-                                                </TimeStamp>
-                                                <DeleteBtn onClick={() => handleDelete(sub.id)}>
+                                                <MainDetail>{main.details || '-'}</MainDetail>
+                                                <MainTagBadge>{dash?.type || 'recurring'}</MainTagBadge>
+                                                <ProgressBadge done={isDone}>
+                                                    {isDone
+                                                        ? `✓ ${formatTime(main.completed_at!)}`
+                                                        : `${completed}/${target}`}
+                                                </ProgressBadge>
+                                                <DeleteBtn
+                                                    onClick={e => {
+                                                        e.stopPropagation()
+                                                        handleDelete(main.id)
+                                                    }}
+                                                >
                                                     <Trash2 size={14} />
                                                 </DeleteBtn>
-                                            </SubRow>
-                                        ))}
-                                </EventGroup>
-                            )
-                        })}
-                    </div>
-                ))
-            )}
+                                            </MainRow>
+
+                                            {isExpanded &&
+                                                subs.map(sub => (
+                                                    <SubRow key={sub.id}>
+                                                        <StatusIcon done={!!sub.completed_at}>
+                                                            {sub.completed_at ? (
+                                                                <Check size={14} />
+                                                            ) : (
+                                                                <Circle size={14} />
+                                                            )}
+                                                        </StatusIcon>
+                                                        <SubDetail>{sub.details || '-'}</SubDetail>
+                                                        {sub.mood && <MoodSpan>{sub.mood}</MoodSpan>}
+                                                        <TimeStamp>
+                                                            {sub.completed_at
+                                                                ? formatTime(sub.completed_at)
+                                                                : formatTime(sub.created_at)}
+                                                        </TimeStamp>
+                                                        <DeleteBtn onClick={() => handleDelete(sub.id)}>
+                                                            <Trash2 size={14} />
+                                                        </DeleteBtn>
+                                                    </SubRow>
+                                                ))}
+                                        </EventGroup>
+                                    )
+                                })}
+                            </TagEvents>
+                        </TagSection>
+                    ))
+                )}
+            </EventList>
         </Container>
     )
 }
