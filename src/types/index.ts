@@ -37,6 +37,7 @@ export interface TodoGroup {
     created_at: string
     updated_at: string
     deleted_at: string | null
+    archived_at: string | null
 }
 
 export interface TodoItem {
@@ -52,6 +53,7 @@ export interface TodoItem {
     created_at: string
     updated_at: string
     deleted_at: string | null
+    archived_at: string | null
 }
 
 export interface CreateTagDTO {

@@ -30,6 +30,35 @@ export class TodoService {
         todoGroupRepo.delete(id)
     }
 
+    archiveGroup(id: number): void {
+        const existing = todoGroupRepo.findById(id)
+        if (!existing) throw new Error(`Group ${id} not found`)
+
+        // Archive all todos in this group
+        const allItems = todoRepo.findAllActive()
+        const groupItems = allItems.filter(item => item.todo_group_id === id)
+        for (const item of groupItems) {
+            todoRepo.archive(item.id)
+        }
+
+        // Then archive the group
+        todoGroupRepo.archive(id)
+    }
+
+    unarchiveGroup(id: number): void {
+        const existing = todoGroupRepo.findById(id)
+        if (!existing) throw new Error(`Group ${id} not found`)
+
+        todoGroupRepo.unarchive(id)
+
+        // Unarchive all todos in this group
+        const allItems = todoRepo.findAllIncludingDeleted()
+        const groupItems = allItems.filter(item => item.todo_group_id === id && item.archived_at)
+        for (const item of groupItems) {
+            todoRepo.unarchive(item.id)
+        }
+    }
+
     listGroups(): { group: TodoGroup; items: TodoItem[] }[] {
         const groups = todoGroupRepo.findAllActive()
         const allItems = todoRepo.findAllActive()
@@ -77,6 +106,19 @@ export class TodoService {
         }
 
         todoRepo.update(id, data)
+
+        // Auto-complete parent if all subtasks are done
+        if (data.status === 'done' && existing.parent_id) {
+            const parent = todoRepo.findById(existing.parent_id)
+            if (parent && parent.status !== 'done') {
+                const siblings = todoRepo.findByParent(existing.parent_id)
+                const allDone = siblings.every(s => s.status === 'done')
+                if (allDone) {
+                    todoRepo.update(existing.parent_id, { status: 'done' })
+                }
+            }
+        }
+
         return todoRepo.findById(id)!
     }
 
@@ -91,6 +133,39 @@ export class TodoService {
         for (const child of children) {
             todoRepo.delete(child.id)
         }
+    }
+
+    archiveTodo(id: number): void {
+        const existing = todoRepo.findById(id)
+        if (!existing) throw new Error(`Todo ${id} not found`)
+
+        todoRepo.archive(id)
+
+        // cascade archive children
+        const children = todoRepo.findByParent(id)
+        for (const child of children) {
+            todoRepo.archive(child.id)
+        }
+    }
+
+    unarchiveTodo(id: number): void {
+        const existing = todoRepo.findById(id)
+        if (!existing) throw new Error(`Todo ${id} not found`)
+
+        todoRepo.unarchive(id)
+    }
+
+    listHistory(): { todo: TodoItem; groupName: string }[] {
+        const allItems = todoRepo.findAllIncludingDeleted()
+        // Include archived + deleted items in history
+        const historyItems = allItems.filter(item => item.deleted_at || item.archived_at)
+        const groups = todoGroupRepo.findAllNonDeleted()
+        const groupMap = new Map(groups.map(g => [g.id, g.name]))
+
+        return historyItems.map(item => ({
+            todo: item,
+            groupName: groupMap.get(item.todo_group_id) || 'Deleted Group'
+        }))
     }
 }
 

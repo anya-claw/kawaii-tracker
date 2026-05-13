@@ -78,6 +78,7 @@ const ChartsGrid = styled.div`
     display: grid;
     grid-template-columns: 2fr 1fr;
     gap: ${({ theme }) => theme.spacing(3)};
+    user-select: none;
 
     @media (max-width: 1024px) {
         grid-template-columns: 1fr;
@@ -233,9 +234,28 @@ const SectionTitle = styled.h2`
     font-weight: 800;
     color: ${({ theme }) => theme.colors.text};
     margin: 0;
+    margin-bottom: ${({ theme }) => theme.spacing(2)};
     display: flex;
     align-items: center;
     gap: ${({ theme }) => theme.spacing(1.5)};
+`
+
+const SectionColumn = styled.section`
+    display: flex;
+    flex-direction: column;
+`
+
+const EmptyLabel = styled(NumberLabel)`
+    text-align: center;
+`
+
+const TransparentBadge = styled(Badge)`
+    background: transparent;
+    border: none;
+`
+
+const StretchedGrid = styled(ChartsGrid)`
+    align-items: stretch;
 `
 
 const SectionHeader = styled.div`
@@ -321,15 +341,20 @@ export function OverviewBoard({
     // --- Chart Data Calculations ---
 
     // 1. Task Completion Pie Data
+    // Logic: Archived & Deleted = not counted in statistics at all. Only active items counted.
     const pieData = useMemo(() => {
-        if (!allItems.length) return []
-        const done = allItems.filter(i => i.status === 'done').length
+        // Only count active items (non-deleted, non-archived)
+        const activeItems = allItems
+
+        if (!activeItems.length) return []
+
+        const done = activeItems.filter(i => i.status === 'done').length
 
         let overdue = 0
         let normalPending = 0
-
         const now = new Date().getTime()
-        allItems
+
+        activeItems
             .filter(i => i.status !== 'done')
             .forEach(i => {
                 if (i.due_date && new Date(i.due_date).getTime() < now) {
@@ -342,7 +367,7 @@ export function OverviewBoard({
         return [
             { name: 'Done', value: done, color: theme.colors.success },
             { name: 'Pending', value: normalPending, color: theme.colors.primary },
-            { name: 'Overdue', value: overdue, color: theme.colors.danger }
+            { name: 'Overdue', value: overdue, color: '#ffd166' }
         ].filter(v => v.value > 0)
     }, [allItems, theme])
 
@@ -537,9 +562,9 @@ export function OverviewBoard({
                 </ChartsGrid>
             </section>
 
-            <ChartsGrid style={{ alignItems: 'stretch' }}>
+            <StretchedGrid>
                 {/* Priority To-Dos */}
-                <section style={{ display: 'flex', flexDirection: 'column' }}>
+                <SectionColumn>
                     <SectionHeader>
                         <SectionTitle>
                             <Calendar size={20} color="#ff8fb3" />
@@ -549,7 +574,7 @@ export function OverviewBoard({
                     </SectionHeader>
                     {pendingTodos.length === 0 ? (
                         <EmptyStateContainer hasMoreContent={stats.filter(s => !s.period_done).length > 0}>
-                            <NumberLabel style={{ textAlign: 'center' }}>All caught up!</NumberLabel>
+                            <EmptyLabel>All caught up!</EmptyLabel>
                         </EmptyStateContainer>
                     ) : (
                         <TodoList>
@@ -595,7 +620,7 @@ export function OverviewBoard({
                             })}
                         </TodoList>
                     )}
-                </section>
+                </SectionColumn>
 
                 {/* Pending Habits */}
                 <section style={{ display: 'flex', flexDirection: 'column' }}>
@@ -608,7 +633,7 @@ export function OverviewBoard({
                     </SectionHeader>
                     {stats.filter(s => !s.period_done).length === 0 ? (
                         <EmptyStateContainer hasMoreContent={pendingTodos.length > 0}>
-                            <NumberLabel style={{ textAlign: 'center' }}>All tracking done for today!</NumberLabel>
+                            <EmptyLabel>All tracking done for today!</EmptyLabel>
                         </EmptyStateContainer>
                     ) : (
                         <TodoList>
@@ -626,9 +651,7 @@ export function OverviewBoard({
                                                 <TodoItemTitle>{stat.tag}</TodoItemTitle>
                                                 <TodoBadges>
                                                     <Badge variant="default">{stat.type}</Badge>
-                                                    <Badge style={{ background: 'transparent', border: 'none' }}>
-                                                        {stat.period_progress}
-                                                    </Badge>
+                                                    <TransparentBadge>{stat.period_progress}</TransparentBadge>
                                                 </TodoBadges>
                                             </TodoContent>
                                         </CardComponent>
@@ -637,7 +660,7 @@ export function OverviewBoard({
                         </TodoList>
                     )}
                 </section>
-            </ChartsGrid>
+            </StretchedGrid>
         </Container>
     )
 }

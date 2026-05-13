@@ -22,6 +22,14 @@ export class TodoGroupRepo {
     findAllActive(): TodoGroup[] {
         return db
             .prepare(
+                'SELECT * FROM todo_groups WHERE deleted_at IS NULL AND archived_at IS NULL ORDER BY CASE WHEN order_index = -1 THEN 1 ELSE 0 END, order_index ASC, created_at ASC'
+            )
+            .all() as TodoGroup[]
+    }
+
+    findAllNonDeleted(): TodoGroup[] {
+        return db
+            .prepare(
                 'SELECT * FROM todo_groups WHERE deleted_at IS NULL ORDER BY CASE WHEN order_index = -1 THEN 1 ELSE 0 END, order_index ASC, created_at ASC'
             )
             .all() as TodoGroup[]
@@ -56,6 +64,20 @@ export class TodoGroupRepo {
             now,
             id
         )
+    }
+
+    archive(id: number): void {
+        const now = formatIso()
+        db.prepare(
+            'UPDATE todo_groups SET archived_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL AND archived_at IS NULL'
+        ).run(now, now, id)
+    }
+
+    unarchive(id: number): void {
+        const now = formatIso()
+        db.prepare(
+            'UPDATE todo_groups SET archived_at = NULL, updated_at = ? WHERE id = ? AND archived_at IS NOT NULL'
+        ).run(now, id)
     }
 }
 

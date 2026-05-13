@@ -143,20 +143,35 @@ const MainLayout = styled.div`
     overflow: hidden;
 `
 
+const BrandName = styled.h2`
+    font-family: 'Times New Roman', 'Georgia', serif;
+    font-weight: 900;
+    font-size: 1.5rem;
+    letter-spacing: 0.5px;
+    margin: 0;
+`
+
+const SidebarFooter = styled.div`
+    margin-top: auto;
+    display: flex;
+    justify-content: center;
+`
+
+const ThemeToggleBtn = styled(ThemeToggle)`
+    padding: 12px 24px;
+`
+
+const ThemeLabel = styled.span`
+    margin-left: 8px;
+    font-weight: 600;
+`
+
 const Brand = styled.div`
     display: flex;
     align-items: center;
     gap: ${({ theme }) => theme.spacing(1.5)};
     padding: 0 ${({ theme }) => theme.spacing(2)};
     color: ${({ theme }) => theme.colors.primary};
-
-    h2 {
-        font-size: 1.5rem;
-        font-weight: 700;
-        letter-spacing: 0.5px;
-        margin: 0;
-        font-family: 'Times New Roman', 'Georgia', serif;
-    }
 `
 
 const NavMenu = styled.div`
@@ -357,16 +372,19 @@ function App({ isDark, setIsDark }: AppProps) {
     const navigate = (tab: typeof activeTab) => {
         if (isSwitching || activeTab === tab) return
         setIsSwitching(true)
-        setPrevTab(activeTab)
         setLoading(true)
-        setActiveTab(tab)
         setSidebarOpen(false)
 
-        // Simulate loading completion after a short delay
+        // Show loading bar first, then switch tab after a brief delay
         setTimeout(() => {
-            setLoading(false)
-            setIsSwitching(false)
-        }, 300)
+            setPrevTab(activeTab)
+            setActiveTab(tab)
+            // After animation plays, unlock
+            setTimeout(() => {
+                setLoading(false)
+                setIsSwitching(false)
+            }, 400)
+        }, 150)
     }
 
     const getAnimationDirection = (): 'up' | 'down' | 'none' => {
@@ -416,7 +434,7 @@ function App({ isDark, setIsDark }: AppProps) {
             <MainLayout>
                 <Sidebar open={sidebarOpen}>
                     <Brand>
-                        <h2 style={{ fontFamily: "'Times New Roman', 'Georgia', serif" }}>Kawaii Tracker</h2>
+                        <BrandName>Kawaii Tracker</BrandName>
                     </Brand>
 
                     <NavMenu>
@@ -468,12 +486,12 @@ function App({ isDark, setIsDark }: AppProps) {
                     </SidebarSection>
 
                     {/* Desktop Theme Toggle */}
-                    <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'center' }}>
-                        <ThemeToggle onClick={toggleTheme} style={{ padding: '12px 24px' }}>
-                            {isDark ? <Sun size={22} /> : <Moon size={22} />}
-                            <span style={{ marginLeft: '8px', fontWeight: 600 }}>{isDark ? 'Light' : 'Dark'}</span>
-                        </ThemeToggle>
-                    </div>
+                    <SidebarFooter>
+                        <ThemeToggleBtn onClick={toggleTheme}>
+                            {isDark ? <Sun size={20} /> : <Moon size={20} />}
+                            <ThemeLabel>{isDark ? 'Light' : 'Dark'}</ThemeLabel>
+                        </ThemeToggleBtn>
+                    </SidebarFooter>
                 </Sidebar>
 
                 <MainContent>

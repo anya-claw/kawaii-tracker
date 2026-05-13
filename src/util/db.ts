@@ -68,6 +68,7 @@ db.exec(`
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT,
+    archived_at TEXT,
     FOREIGN KEY(todo_group_id) REFERENCES todo_groups(id),
     FOREIGN KEY(parent_id) REFERENCES todo_items(id)
   );
@@ -105,3 +106,7 @@ addColumnIfMissing('todo_items', 'description', 'TEXT')
 addColumnIfMissing('todo_items', 'due_date', 'TEXT')
 addColumnIfMissing('todo_items', 'priority', "TEXT NOT NULL DEFAULT 'medium'")
 addColumnIfMissing('todo_items', 'status', "TEXT NOT NULL DEFAULT 'pending'")
+
+// Add archived_at columns
+addColumnIfMissing('todo_items', 'archived_at', 'TEXT')
+addColumnIfMissing('todo_groups', 'archived_at', 'TEXT')

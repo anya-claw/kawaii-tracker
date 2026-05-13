@@ -1,6 +1,16 @@
 import { useState, useEffect, useMemo } from 'react'
 import styled from '@emotion/styled'
-import { Calendar, Tag as TagIcon, Plus, Trash2, ChevronRight, ChevronDown, Check, Circle } from 'lucide-react'
+import {
+    Calendar,
+    Tag as TagIcon,
+    Plus,
+    Trash2,
+    ChevronRight,
+    ChevronDown,
+    Check,
+    Circle,
+    ChevronLeft
+} from 'lucide-react'
 import { TrackerAPI } from '../../shared/api'
 import type { TrackerEvent, DashboardStat } from '../../shared/api/schema'
 import { Modal } from '../shared/Modal'
@@ -160,7 +170,7 @@ const TagHeader = styled.div`
     font-size: 0.85rem;
     font-weight: 600;
     color: ${({ theme }) => theme.colors.primary};
-    background-color: ${({ theme }) => theme.colors.surfaceAlt};
+    background-color: ${({ theme }) => theme.colors.border};
     border-radius: ${({ theme }) => theme.borderRadius.small};
     animation: fadeIn 0.2s ease;
 
@@ -352,6 +362,72 @@ const RANGES = [
     { value: 'all', label: 'All Time' }
 ]
 
+const ITEMS_PER_PAGE = 100
+
+const PaginationBar = styled.div`
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: ${({ theme }) => theme.spacing(2)};
+    padding: ${({ theme }) => theme.spacing(3)};
+    margin-top: ${({ theme }) => theme.spacing(2)};
+`
+
+const PageInfo = styled.span`
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: ${({ theme }) => theme.colors.text};
+`
+
+const PaginationBtn = styled.button<{ disabled?: boolean }>`
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: ${({ theme }) => theme.borderRadius.small};
+    background-color: ${({ theme, disabled }) => (disabled ? theme.colors.surfaceAlt : theme.colors.primary)};
+    color: ${({ theme, disabled }) => (disabled ? theme.colors.textMuted : 'white')};
+    border: 1px solid ${({ theme, disabled }) => (disabled ? theme.colors.border : theme.colors.primary)};
+    font-weight: 700;
+    transition: ${({ theme }) => theme.transitions.default};
+    cursor: ${({ disabled }) => (disabled ? 'not-allowed' : 'pointer')};
+
+    &:hover:not(:disabled) {
+        background-color: ${({ theme }) => theme.colors.primaryHover};
+        transform: scale(1.05);
+    }
+`
+
+const Divider = styled.div`
+    width: 1px;
+    height: 24px;
+    background-color: ${({ theme }) => theme.colors.border};
+    margin: 0 8px;
+`
+
+const EmptyText = styled.p`
+    color: ${({ theme }) => theme.colors.textMuted};
+    text-align: center;
+    padding: 32px 0;
+`
+
+const AddTagSelect = styled(TagSelect)`
+    min-width: 120px;
+`
+
+const MoodInput = styled(AddInput)`
+    max-width: 100px;
+`
+
+const Spacer = styled.span`
+    width: 16px;
+`
+
+const InlineIcon = styled(Plus)`
+    margin-right: 6px;
+`
+
 interface GroupedEvent {
     tag: string
     mainEvents: {
@@ -372,6 +448,7 @@ export function EventHistory() {
     const [addMood, setAddMood] = useState('')
     const [expandedMain, setExpandedMain] = useState<Set<number>>(new Set())
     const [mobileModalOpen, setMobileModalOpen] = useState(false)
+    const [currentPage, setCurrentPage] = useState(1)
 
     const loadData = () => {
         Promise.all([TrackerAPI.getEvents(range), TrackerAPI.getDashboard(), TrackerAPI.getTags()])
@@ -391,6 +468,17 @@ export function EventHistory() {
         loadData()
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [range, selectedTag])
+
+    // Reset page when range or selectedTag changes
+    const handleRangeChange = (newRange: string) => {
+        setRange(newRange)
+        setCurrentPage(1)
+    }
+
+    const handleTagChange = (newTag: string) => {
+        setSelectedTag(newTag)
+        setCurrentPage(1)
+    }
 
     // Group events: main events (parent_id=null, recurring_mark=1) with their sub-events
     const grouped = useMemo(() => {
@@ -426,6 +514,53 @@ export function EventHistory() {
 
         return Array.from(tagMap.values())
     }, [events, dashboard])
+
+    // Paginate grouped data (only when range is 'all')
+    const totalPages = Math.ceil(events.length / ITEMS_PER_PAGE)
+    const paginatedGrouped = useMemo(() => {
+        if (range === 'all') {
+            // Flatten all events for pagination, then re-group
+            const start = (currentPage - 1) * ITEMS_PER_PAGE
+            const end = start + ITEMS_PER_PAGE
+            const paginatedEvents = events.slice(start, end)
+
+            const tagMap = new Map<string, GroupedEvent>()
+            const mains = paginatedEvents.filter(e => e.recurring_mark === 1 && e.parent_id === null)
+            const subs = paginatedEvents.filter(e => e.parent_id !== null)
+            const singles = paginatedEvents.filter(e => e.recurring_mark === 0 && e.parent_id === null)
+
+            const mainWithSubs = mains.map(m => ({
+                main: m,
+                subs: subs
+                    .filter(s => s.parent_id === m.id)
+                    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+            }))
+
+            for (const ms of mainWithSubs) {
+                const tagName = ms.main.tag_name
+                if (!tagMap.has(tagName)) tagMap.set(tagName, { tag: tagName, mainEvents: [] })
+                const dashItem = dashboard.find(d => d.tag === tagName)
+                tagMap.get(tagName)!.mainEvents.push({ ...ms, dashboard: dashItem })
+            }
+
+            for (const s of singles) {
+                const tagName = s.tag_name
+                if (!tagMap.has(tagName)) tagMap.set(tagName, { tag: tagName, mainEvents: [] })
+                tagMap.get(tagName)!.mainEvents.push({ main: s, subs: [], dashboard: undefined })
+            }
+
+            return Array.from(tagMap.values())
+        }
+        return grouped
+    }, [range, events, currentPage, dashboard, grouped])
+
+    const handlePrevPage = () => {
+        if (currentPage > 1) setCurrentPage(currentPage - 1)
+    }
+
+    const handleNextPage = () => {
+        if (currentPage < totalPages) setCurrentPage(currentPage + 1)
+    }
 
     const toggleExpand = (id: number) => {
         setExpandedMain(prev => {
@@ -475,13 +610,13 @@ export function EventHistory() {
             <FilterBar>
                 <Calendar size={18} />
                 {RANGES.map(r => (
-                    <FilterBtn key={r.value} active={range === r.value} onClick={() => setRange(r.value)}>
+                    <FilterBtn key={r.value} active={range === r.value} onClick={() => handleRangeChange(r.value)}>
                         {r.label}
                     </FilterBtn>
                 ))}
-                <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border)', margin: '0 8px' }} />
+                <Divider />
                 <TagIcon size={18} />
-                <TagSelect value={selectedTag} onChange={e => setSelectedTag(e.target.value)}>
+                <TagSelect value={selectedTag} onChange={e => handleTagChange(e.target.value)}>
                     <option value="all">All Tags</option>
                     {tags.map(t => (
                         <option key={t.tag} value={t.tag}>
@@ -493,25 +628,20 @@ export function EventHistory() {
 
             {/* Desktop Add Bar */}
             <AddBar>
-                <TagSelect value={addTag} onChange={e => setAddTag(e.target.value)} style={{ minWidth: '120px' }}>
+                <AddTagSelect value={addTag} onChange={e => setAddTag(e.target.value)}>
                     <option value="">-- Tag --</option>
                     {tags.map(t => (
                         <option key={t.tag} value={t.tag}>
                             {t.tag}
                         </option>
                     ))}
-                </TagSelect>
+                </AddTagSelect>
                 <AddInput
                     placeholder="Details (optional)"
                     value={addDetails}
                     onChange={e => setAddDetails(e.target.value)}
                 />
-                <AddInput
-                    placeholder="Mood (optional)"
-                    value={addMood}
-                    onChange={e => setAddMood(e.target.value)}
-                    style={{ maxWidth: '100px' }}
-                />
+                <MoodInput placeholder="Mood (optional)" value={addMood} onChange={e => setAddMood(e.target.value)} />
                 <AddBtn onClick={handleAdd}>
                     <Plus size={16} /> Add
                 </AddBtn>
@@ -554,19 +684,17 @@ export function EventHistory() {
                 <ButtonGroup>
                     <Button onClick={() => setMobileModalOpen(false)}>Cancel</Button>
                     <Button variant="primary" onClick={handleAdd} disabled={!addTag.trim()}>
-                        <Plus size={16} style={{ marginRight: '6px' }} /> Add Event
+                        <InlineIcon size={16} /> Add Event
                     </Button>
                 </ButtonGroup>
             </Modal>
 
             {/* Event List - Grouped by Tag */}
             <EventList>
-                {grouped.length === 0 ? (
-                    <p style={{ color: 'var(--textMuted)', textAlign: 'center', padding: '32px 0' }}>
-                        No events found.
-                    </p>
+                {paginatedGrouped.length === 0 ? (
+                    <EmptyText>No events found.</EmptyText>
                 ) : (
-                    grouped.map(group => (
+                    paginatedGrouped.map(group => (
                         <TagSection key={group.tag}>
                             <TagHeader>
                                 <TagIcon size={14} />
@@ -605,6 +733,17 @@ export function EventHistory() {
                                     const completed = subs.length
                                     const isDone = !!main.completed_at
 
+                                    // For recurring (target > 1): show last SubEvent's details/mood
+                                    // For single (target = 1): show completed Event's details/mood
+                                    const lastSub = subs.length > 0 ? subs[subs.length - 1] : null
+                                    const displayDetails =
+                                        target > 1 && lastSub
+                                            ? lastSub.details || main.details || '-'
+                                            : isDone
+                                              ? main.details || '-'
+                                              : main.details || '-'
+                                    const displayMood = target > 1 && lastSub ? lastSub.mood || main.mood : main.mood
+
                                     return (
                                         <EventGroup key={main.id}>
                                             <MainRow onClick={() => toggleExpand(main.id)}>
@@ -615,12 +754,13 @@ export function EventHistory() {
                                                         <ChevronRight size={16} />
                                                     )
                                                 ) : (
-                                                    <span style={{ width: '16px' }} />
+                                                    <Spacer />
                                                 )}
                                                 <StatusIcon done={isDone}>
                                                     {isDone ? <Check size={16} /> : <Circle size={16} />}
                                                 </StatusIcon>
-                                                <MainDetail>{main.details || '-'}</MainDetail>
+                                                <MainDetail>{displayDetails}</MainDetail>
+                                                {displayMood && <MoodSpan>{displayMood}</MoodSpan>}
                                                 <MainTagBadge>{dash?.type || 'recurring'}</MainTagBadge>
                                                 <ProgressBadge done={isDone}>
                                                     {isDone
@@ -667,6 +807,21 @@ export function EventHistory() {
                     ))
                 )}
             </EventList>
+
+            {/* Pagination for 'All Time' range */}
+            {range === 'all' && totalPages > 1 && (
+                <PaginationBar>
+                    <PaginationBtn disabled={currentPage === 1} onClick={handlePrevPage}>
+                        <ChevronLeft size={20} />
+                    </PaginationBtn>
+                    <PageInfo>
+                        Page {currentPage} / {totalPages} ({events.length} events)
+                    </PageInfo>
+                    <PaginationBtn disabled={currentPage === totalPages} onClick={handleNextPage}>
+                        <ChevronRight size={20} />
+                    </PaginationBtn>
+                </PaginationBar>
+            )}
         </Container>
     )
 }

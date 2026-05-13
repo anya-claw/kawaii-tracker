@@ -1,13 +1,75 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import styled from '@emotion/styled'
 import { KanbanAPI } from '../../shared/api'
 import type { TodoItem } from '../../shared/api/schema'
-import { CheckCircle2, Clock, Tag, Calendar, AlertCircle, FileText, ArrowUp, ArrowDown, Minus } from 'lucide-react'
+import {
+    CheckCircle2,
+    Clock,
+    Tag,
+    Calendar,
+    AlertCircle,
+    FileText,
+    ArrowUp,
+    ArrowDown,
+    Minus,
+    ChevronLeft,
+    ChevronRight
+} from 'lucide-react'
 
 const Container = styled.div`
     display: flex;
     flex-direction: column;
     gap: ${({ theme }) => theme.spacing(2)};
+`
+
+const FilterBar = styled.div`
+    display: flex;
+    gap: ${({ theme }) => theme.spacing(2)};
+    align-items: center;
+    flex-wrap: wrap;
+
+    @media (max-width: 768px) {
+        gap: ${({ theme }) => theme.spacing(1)};
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding-bottom: ${({ theme }) => theme.spacing(1)};
+    }
+`
+
+const FilterBtn = styled.button<{ active: boolean }>`
+    padding: ${({ theme }) => theme.spacing(1)} ${({ theme }) => theme.spacing(2)};
+    border-radius: ${({ theme }) => theme.borderRadius.small};
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: ${({ theme }) => theme.transitions.default};
+    background-color: ${({ theme, active }) => (active ? theme.colors.primary : theme.colors.surface)};
+    color: ${({ theme, active }) => (active ? 'white' : theme.colors.textMuted)};
+    border: 1px solid ${({ theme, active }) => (active ? theme.colors.primary : theme.colors.border)};
+    white-space: nowrap;
+
+    &:hover {
+        background-color: ${({ theme, active }) => (active ? theme.colors.primaryHover : theme.colors.sidebarHover)};
+        transform: translateY(-1px);
+    }
+
+    @media (max-width: 768px) {
+        font-size: 0.85rem;
+        padding: 6px 12px;
+    }
+`
+
+const DeletedBadge = styled.span`
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background-color: ${({ theme }) => theme.colors.danger}20;
+    color: ${({ theme }) => theme.colors.danger};
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 `
 
 const HistoryCard = styled.div`
@@ -136,27 +198,123 @@ const TimeItem = styled.div`
     gap: 6px;
 `
 
-const HeaderText = styled.p`
-    color: ${({ theme }) => theme.colors.textMuted};
-    font-size: 0.9rem;
-    margin-bottom: ${({ theme }) => theme.spacing(2)};
+const PaginationBar = styled.div`
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: ${({ theme }) => theme.spacing(2)};
+    padding: ${({ theme }) => theme.spacing(3)};
+    margin-top: ${({ theme }) => theme.spacing(2)};
 `
 
+const PageInfo = styled.span`
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: ${({ theme }) => theme.colors.text};
+`
+
+const PaginationBtn = styled.button<{ disabled?: boolean }>`
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: ${({ theme }) => theme.borderRadius.small};
+    background-color: ${({ theme, disabled }) => (disabled ? theme.colors.surfaceAlt : theme.colors.primary)};
+    color: ${({ theme, disabled }) => (disabled ? theme.colors.textMuted : 'white')};
+    border: 1px solid ${({ theme, disabled }) => (disabled ? theme.colors.border : theme.colors.primary)};
+    font-weight: 700;
+    transition: ${({ theme }) => theme.transitions.default};
+    cursor: ${({ disabled }) => (disabled ? 'not-allowed' : 'pointer')};
+
+    &:hover:not(:disabled) {
+        background-color: ${({ theme }) => theme.colors.primaryHover};
+        transform: scale(1.05);
+    }
+`
+
+const EmptyText = styled.p`
+    color: ${({ theme }) => theme.colors.textMuted};
+    text-align: center;
+    padding: 32px 0;
+`
+
+const RangeInfo = styled.p`
+    color: ${({ theme }) => theme.colors.textMuted};
+    font-size: 0.9rem;
+    margin-bottom: 8px;
+`
+
+const FileIcon = styled(FileText)`
+    margin-right: 8px;
+    vertical-align: middle;
+`
+
+const ArchivedBadge = styled.span`
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background-color: #f59e0b20;
+    color: #d97706;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+`
+
+const RANGES = [
+    { value: 'this_month', label: 'This Month' },
+    { value: 'this_year', label: 'This Year' },
+    { value: 'all', label: 'All Time' }
+]
+
+const ITEMS_PER_PAGE = 100
+
 export function TodoHistory() {
-    const [historyItems, setHistoryItems] = useState<{ todo: TodoItem; groupName: string }[]>([])
+    const [allHistoryItems, setAllHistoryItems] = useState<{ todo: TodoItem; groupName: string }[]>([])
+    const [range, setRange] = useState('this_month')
+    const [currentPage, setCurrentPage] = useState(1)
 
     useEffect(() => {
-        KanbanAPI.getGroups()
-            .then(groups => {
-                const allItems = groups.flatMap(g => g.items.map(item => ({ todo: item, groupName: g.group.name })))
-                // Filter only done items
-                const doneItems = allItems.filter(item => item.todo.status === 'done')
+        KanbanAPI.getTodoHistory()
+            .then(items => {
                 // Sort by updated_at descending
-                doneItems.sort((a, b) => new Date(b.todo.updated_at).getTime() - new Date(a.todo.updated_at).getTime())
-                setHistoryItems(doneItems)
+                items.sort((a, b) => new Date(b.todo.updated_at).getTime() - new Date(a.todo.updated_at).getTime())
+                setAllHistoryItems(items)
             })
             .catch(console.error)
     }, [])
+
+    // Filter items by range
+    const filteredItems = useMemo(() => {
+        const now = new Date()
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+        const startOfYear = new Date(now.getFullYear(), 0, 1)
+
+        return allHistoryItems.filter(item => {
+            const itemDate = new Date(item.todo.updated_at)
+            if (range === 'this_month') {
+                return itemDate >= startOfMonth
+            } else if (range === 'this_year') {
+                return itemDate >= startOfYear
+            } else {
+                return true // all
+            }
+        })
+    }, [allHistoryItems, range])
+
+    // Paginate items (only when range is 'all')
+    const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE)
+    const paginatedItems = useMemo(() => {
+        if (range === 'all') {
+            const start = (currentPage - 1) * ITEMS_PER_PAGE
+            const end = start + ITEMS_PER_PAGE
+            return filteredItems.slice(start, end)
+        }
+        return filteredItems
+    }, [filteredItems, currentPage, range])
 
     const formatDate = (dateStr: string) => {
         const date = new Date(dateStr)
@@ -179,68 +337,138 @@ export function TodoHistory() {
         }
     }
 
+    const handlePrevPage = () => {
+        if (currentPage > 1) setCurrentPage(currentPage - 1)
+    }
+
+    const handleNextPage = () => {
+        if (currentPage < totalPages) setCurrentPage(currentPage + 1)
+    }
+
     return (
         <Container>
-            <HeaderText>✓ Completed Todo tasks history ({historyItems.length} items)</HeaderText>
-            {historyItems.length === 0 ? (
-                <p style={{ color: 'var(--textMuted)', textAlign: 'center', padding: '32px 0' }}>
-                    No completed tasks found.
-                </p>
+            <FilterBar>
+                <Calendar size={18} />
+                {RANGES.map(r => (
+                    <FilterBtn
+                        key={r.value}
+                        active={range === r.value}
+                        onClick={() => {
+                            setRange(r.value)
+                            setCurrentPage(1)
+                        }}
+                    >
+                        {r.label}
+                    </FilterBtn>
+                ))}
+            </FilterBar>
+
+            {paginatedItems.length === 0 ? (
+                <EmptyText>No completed tasks found.</EmptyText>
             ) : (
-                historyItems.map(({ todo, groupName }) => (
-                    <HistoryCard key={todo.id}>
-                        <TopRow>
-                            <TitleArea>
-                                <CheckCircle2 size={20} />
-                                <TitleText>{todo.title}</TitleText>
-                                <PriorityBadge priority={todo.priority}>
-                                    {getPriorityIcon(todo.priority)}
-                                    {todo.priority.toUpperCase()}
-                                </PriorityBadge>
-                            </TitleArea>
-                            <StatusBadge>
-                                <CheckCircle2 size={14} /> Done
-                            </StatusBadge>
-                        </TopRow>
+                <>
+                    {range === 'all' ? (
+                        <RangeInfo>
+                            ✓ Completed Todo tasks history ({filteredItems.length} items, Page {currentPage} of
+                            {totalPages})
+                        </RangeInfo>
+                    ) : (
+                        <RangeInfo>✓ Completed Todo tasks history ({filteredItems.length} items)</RangeInfo>
+                    )}
 
-                        <InfoGrid>
-                            <InfoItem>
-                                <Tag size={14} />
-                                <span>{groupName}</span>
-                            </InfoItem>
-                            {todo.due_date && (
-                                <InfoItem>
-                                    <Calendar size={14} />
-                                    <span>Due: {formatDate(todo.due_date)}</span>
-                                </InfoItem>
-                            )}
-                            {todo.parent_id && (
-                                <InfoItem>
-                                    <AlertCircle size={14} />
-                                    <span>Subtask</span>
-                                </InfoItem>
-                            )}
-                        </InfoGrid>
+                    {paginatedItems.map(({ todo, groupName }) => {
+                        const isDeleted = !!todo.deleted_at
+                        const isArchived = !!todo.archived_at && !isDeleted
+                        return (
+                            <HistoryCard
+                                key={todo.id}
+                                style={
+                                    isDeleted
+                                        ? { opacity: 0.7, borderColor: 'rgba(255,100,100,0.3)' }
+                                        : isArchived
+                                          ? { opacity: 0.85, borderColor: 'rgba(245,158,11,0.3)' }
+                                          : {}
+                                }
+                            >
+                                <TopRow>
+                                    <TitleArea>
+                                        <CheckCircle2 size={20} />
+                                        <TitleText>{todo.title}</TitleText>
+                                        <PriorityBadge priority={todo.priority}>
+                                            {getPriorityIcon(todo.priority)}
+                                            {todo.priority.toUpperCase()}
+                                        </PriorityBadge>
+                                        {isDeleted && <DeletedBadge>Deleted</DeletedBadge>}
+                                        {isArchived && <ArchivedBadge>Archived</ArchivedBadge>}
+                                    </TitleArea>
+                                    <StatusBadge
+                                        style={
+                                            isDeleted || isArchived
+                                                ? {
+                                                      backgroundColor: 'rgba(128,128,128,0.15)',
+                                                      color: 'rgba(128,128,128,0.8)'
+                                                  }
+                                                : {}
+                                        }
+                                    >
+                                        <CheckCircle2 size={14} /> {todo.status === 'done' ? 'Done' : todo.status}
+                                    </StatusBadge>
+                                </TopRow>
 
-                        {todo.description && (
-                            <DescriptionText>
-                                <FileText size={14} style={{ marginRight: '8px', verticalAlign: 'middle' }} />
-                                {todo.description}
-                            </DescriptionText>
-                        )}
+                                <InfoGrid>
+                                    <InfoItem>
+                                        <Tag size={14} />
+                                        <span>{groupName}</span>
+                                    </InfoItem>
+                                    {todo.due_date && (
+                                        <InfoItem>
+                                            <Calendar size={14} />
+                                            <span>Due: {formatDate(todo.due_date)}</span>
+                                        </InfoItem>
+                                    )}
+                                    {todo.parent_id && (
+                                        <InfoItem>
+                                            <AlertCircle size={14} />
+                                            <span>Subtask</span>
+                                        </InfoItem>
+                                    )}
+                                </InfoGrid>
 
-                        <TimeInfo>
-                            <TimeItem>
-                                <Clock size={14} />
-                                Created: {formatDateTime(todo.created_at)}
-                            </TimeItem>
-                            <TimeItem>
-                                <CheckCircle2 size={14} />
-                                Completed: {formatDateTime(todo.updated_at)}
-                            </TimeItem>
-                        </TimeInfo>
-                    </HistoryCard>
-                ))
+                                {todo.description && (
+                                    <DescriptionText>
+                                        <FileIcon size={14} />
+                                        {todo.description}
+                                    </DescriptionText>
+                                )}
+
+                                <TimeInfo>
+                                    <TimeItem>
+                                        <Clock size={14} />
+                                        Created: {formatDateTime(todo.created_at)}
+                                    </TimeItem>
+                                    <TimeItem>
+                                        <CheckCircle2 size={14} />
+                                        Completed: {formatDateTime(todo.updated_at)}
+                                    </TimeItem>
+                                </TimeInfo>
+                            </HistoryCard>
+                        )
+                    })}
+
+                    {range === 'all' && totalPages > 1 && (
+                        <PaginationBar>
+                            <PaginationBtn disabled={currentPage === 1} onClick={handlePrevPage}>
+                                <ChevronLeft size={20} />
+                            </PaginationBtn>
+                            <PageInfo>
+                                Page {currentPage} / {totalPages}
+                            </PageInfo>
+                            <PaginationBtn disabled={currentPage === totalPages} onClick={handleNextPage}>
+                                <ChevronRight size={20} />
+                            </PaginationBtn>
+                        </PaginationBar>
+                    )}
+                </>
             )}
         </Container>
     )

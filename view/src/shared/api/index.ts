@@ -63,7 +63,29 @@ export const KanbanAPI = {
     deleteTodo: (id: number) =>
         fetchJSON<void>(`${API_BASE}/todos/${id}`, {
             method: 'DELETE'
-        })
+        }),
+
+    archiveTodo: (id: number) =>
+        fetchJSON<void>(`${API_BASE}/todos/${id}/archive`, {
+            method: 'POST'
+        }),
+
+    unarchiveTodo: (id: number) =>
+        fetchJSON<void>(`${API_BASE}/todos/${id}/unarchive`, {
+            method: 'POST'
+        }),
+
+    archiveGroup: (id: number) =>
+        fetchJSON<void>(`${API_BASE}/groups/${id}/archive`, {
+            method: 'POST'
+        }),
+
+    unarchiveGroup: (id: number) =>
+        fetchJSON<void>(`${API_BASE}/groups/${id}/unarchive`, {
+            method: 'POST'
+        }),
+
+    getTodoHistory: () => fetchJSON<{ todo: TodoItem; groupName: string }[]>(`${API_BASE}/todos/history`)
 }
 
 export const TrackerAPI = {

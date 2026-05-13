@@ -37,6 +37,8 @@ const BoardContainer = styled.div`
 
 const AddGroupButton = styled.button`
     min-width: 300px;
+    max-width: 500px;
+    width: 100%;
     height: 60px;
     background-color: transparent;
     border: 2px dashed ${({ theme }) => theme.colors.border};
@@ -340,10 +342,33 @@ export function KanbanBoard() {
 
     const handleStatusChange = (id: number, newStatus: 'pending' | 'doing' | 'done') => {
         setGroups(prev =>
-            prev.map(g => ({
-                ...g,
-                items: g.items.map(item => (item.id === id ? { ...item, status: newStatus } : item))
-            }))
+            prev.map(g => {
+                const updatedItems = g.items.map(item => {
+                    if (item.id === id) {
+                        return { ...item, status: newStatus }
+                    }
+                    return item
+                })
+
+                // Auto-complete parent if all subtasks are done
+                if (newStatus === 'done') {
+                    const changedItem = updatedItems.find(i => i.id === id)
+                    if (changedItem?.parent_id) {
+                        const siblings = updatedItems.filter(i => i.parent_id === changedItem.parent_id)
+                        const allDone = siblings.every(s => s.status === 'done')
+                        if (allDone) {
+                            return {
+                                ...g,
+                                items: updatedItems.map(i =>
+                                    i.id === changedItem.parent_id ? { ...i, status: 'done' as const } : i
+                                )
+                            }
+                        }
+                    }
+                }
+
+                return { ...g, items: updatedItems }
+            })
         )
     }
 
@@ -385,9 +410,18 @@ export function KanbanBoard() {
                                 try {
                                     await KanbanAPI.deleteGroup(id)
                                     setGroups(prev => prev.filter(g => g.group.id !== id))
-                                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
                                 } catch (e) {
                                     alert('Failed to delete group')
+                                }
+                            }}
+                            onArchiveGroup={async id => {
+                                try {
+                                    await KanbanAPI.archiveGroup(id)
+                                    setGroups(prev => prev.filter(g => g.group.id !== id))
+                                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                } catch (e) {
+                                    alert('Failed to archive group')
                                 }
                             }}
                         />
@@ -456,17 +490,24 @@ export function KanbanBoard() {
                     <FormGroup>
                         <label>Due Date (Optional)</label>
                         <input
-                            type="date"
+                            type="datetime-local"
                             value={todoForm.due_date || ''}
-                            onChange={e => setTodoForm(prev => ({ ...prev, due_date: e.target.value }))}
+                            onChange={e => {
+                                const val = e.target.value
+                                if (val && isNaN(new Date(val).getTime())) {
+                                    return
+                                }
+                                setTodoForm(prev => ({ ...prev, due_date: val }))
+                            }}
                         />
                     </FormGroup>
                     <FormGroup>
                         <label>Priority</label>
                         <select
                             value={todoForm.priority || 'low'}
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            onChange={e => setTodoForm(prev => ({ ...prev, priority: e.target.value as any }))}
+                            onChange={e =>
+                                setTodoForm(prev => ({ ...prev, priority: e.target.value as TodoItem['priority'] }))
+                            }
                         >
                             <option value="low">Low</option>
                             <option value="medium">Medium</option>
@@ -474,9 +515,55 @@ export function KanbanBoard() {
                         </select>
                     </FormGroup>
                     <ButtonGroup>
-                        <Button type="button" onClick={() => setIsTodoModalOpen(false)}>
-                            Cancel
-                        </Button>
+                        {editingTodoId ? (
+                            <>
+                                <Button
+                                    type="button"
+                                    variant="danger"
+                                    onClick={async () => {
+                                        if (!confirm('Are you sure you want to delete this task?')) return
+                                        try {
+                                            await KanbanAPI.deleteTodo(editingTodoId)
+                                            setGroups(prev =>
+                                                prev.map(g => ({
+                                                    ...g,
+                                                    items: g.items.filter(i => i.id !== editingTodoId)
+                                                }))
+                                            )
+                                            setIsTodoModalOpen(false)
+                                        } catch {
+                                            alert('Failed to delete task')
+                                        }
+                                    }}
+                                >
+                                    Delete
+                                </Button>
+                                <Button
+                                    type="button"
+                                    onClick={async () => {
+                                        if (!confirm('Archive this task?')) return
+                                        try {
+                                            await KanbanAPI.archiveTodo(editingTodoId)
+                                            setGroups(prev =>
+                                                prev.map(g => ({
+                                                    ...g,
+                                                    items: g.items.filter(i => i.id !== editingTodoId)
+                                                }))
+                                            )
+                                            setIsTodoModalOpen(false)
+                                        } catch {
+                                            alert('Failed to archive task')
+                                        }
+                                    }}
+                                >
+                                    Archive
+                                </Button>
+                            </>
+                        ) : (
+                            <Button type="button" onClick={() => setIsTodoModalOpen(false)}>
+                                Cancel
+                            </Button>
+                        )}
                         <Button variant="primary" type="submit">
                             {editingTodoId ? 'Save Changes' : 'Add Task'}
                         </Button>

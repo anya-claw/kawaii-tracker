@@ -172,14 +172,16 @@ const SubTasksContainer = styled.div`
 
 const SubTaskItem = styled.div<{ isDone: boolean }>`
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 6px;
-    font-size: 0.85rem;
+    font-size: 1rem;
     color: ${({ theme }) => theme.colors.text};
-    padding: 4px 6px;
-    background-color: ${({ theme }) => theme.colors.surfaceAlt};
-    border-radius: 4px;
+    padding: 6px 8px;
+    background-color: ${({ theme }) => theme.colors.background};
+    border-radius: 6px;
+    border: 1px solid ${({ theme }) => theme.colors.border};
     transition: ${props => props.theme.transitions.fast};
+    flex-direction: column;
 
     ${({ isDone }) =>
         isDone &&
@@ -191,6 +193,20 @@ const SubTaskItem = styled.div<{ isDone: boolean }>`
     &:hover {
         background-color: ${({ theme }) => theme.colors.sidebarHover};
     }
+`
+
+const SubTaskRow = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+`
+
+const SubTaskDesc = styled.span`
+    font-size: 0.7rem;
+    color: ${({ theme }) => theme.colors.textMuted};
+    margin-left: 20px;
+    margin-top: 2px;
 `
 
 const AddSubTaskBtn = styled.div`
@@ -244,6 +260,56 @@ const PriorityBadge = styled.span<{ priority: string }>`
         priority === 'high' ? theme.colors.danger : priority === 'medium' ? '#d4a000' : theme.colors.secondary};
 `
 
+const SubTaskCheckbox = styled(CheckboxWrapper)`
+    width: 16px;
+    height: 16px;
+    min-width: 14px;
+`
+
+const SubTaskTitle = styled.span`
+    flex: 1;
+    font-size: 1rem;
+`
+
+const SubTaskPriority = styled(PriorityBadge)`
+    font-size: 0.6rem;
+    padding: 1px 4px;
+`
+
+const MoveMenuWrapper = styled.div`
+    position: relative;
+`
+
+const MoveMenuDropdown = styled.div`
+    position: absolute;
+    right: 0;
+    top: 100%;
+    background-color: ${({ theme }) => theme.colors.surface};
+    border: 1px solid ${({ theme }) => theme.colors.border};
+    border-radius: ${({ theme }) => theme.borderRadius.medium};
+    padding: 4px;
+    z-index: 10;
+    min-width: 120px;
+    box-shadow: ${({ theme }) => theme.shadows.hover};
+`
+
+const MoveMenuButton = styled.button`
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    border-radius: ${({ theme }) => theme.borderRadius.small};
+    font-size: 0.85rem;
+    text-align: left;
+    cursor: pointer;
+    color: ${({ theme }) => theme.colors.text};
+
+    &:hover {
+        background-color: ${({ theme }) => theme.colors.sidebarHover};
+    }
+`
+
 const getPriorityIcon = (priority: string) => {
     switch (priority) {
         case 'high':
@@ -290,6 +356,18 @@ export function KanbanCard({
 
     const isDone = item.status === 'done'
     const isOverdue = item.due_date ? new Date(item.due_date) < new Date() && !isDone : false
+
+    const formatDueDate = (dateStr: string) => {
+        const d = new Date(dateStr)
+        if (isNaN(d.getTime())) return dateStr
+        return d.toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        })
+    }
 
     const handleToggle = async (e: React.MouseEvent) => {
         e.stopPropagation()
@@ -351,7 +429,7 @@ export function KanbanCard({
                     {item.due_date && (
                         <DueDateBadge isOverdue={isOverdue}>
                             <Clock size={10} />
-                            {item.due_date}
+                            {formatDueDate(item.due_date)}
                         </DueDateBadge>
                     )}
                 </MetaRow>
@@ -364,26 +442,31 @@ export function KanbanCard({
                                 isDone={sub.status === 'done'}
                                 onClick={() => onEditSubTask?.(sub)}
                             >
-                                <CheckboxWrapper
-                                    style={{ width: 14, height: 14, minWidth: 14 }}
-                                    checked={sub.status === 'done'}
-                                    onClick={e => {
-                                        e.stopPropagation()
-                                        const newSt = sub.status === 'done' ? 'pending' : 'done'
-                                        KanbanAPI.updateTodo(sub.id, { status: newSt })
-                                            .then(() => {
-                                                onStatusChange?.(sub.id, newSt)
-                                            })
-                                            .catch(err => {
-                                                const message =
-                                                    err instanceof Error ? err.message : 'Failed to update status'
-                                                alert(message)
-                                            })
-                                    }}
-                                >
-                                    {sub.status === 'done' && <CheckIcon size={10} />}
-                                </CheckboxWrapper>
-                                {sub.title}
+                                <SubTaskRow>
+                                    <SubTaskCheckbox
+                                        checked={sub.status === 'done'}
+                                        onClick={e => {
+                                            e.stopPropagation()
+                                            const newSt = sub.status === 'done' ? 'pending' : 'done'
+                                            KanbanAPI.updateTodo(sub.id, { status: newSt })
+                                                .then(() => {
+                                                    onStatusChange?.(sub.id, newSt)
+                                                })
+                                                .catch(err => {
+                                                    const message =
+                                                        err instanceof Error ? err.message : 'Failed to update status'
+                                                    alert(message)
+                                                })
+                                        }}
+                                    >
+                                        {sub.status === 'done' && <CheckIcon size={10} />}
+                                    </SubTaskCheckbox>
+                                    <SubTaskTitle>{sub.title}</SubTaskTitle>
+                                    <SubTaskPriority priority={sub.priority || 'low'}>
+                                        {getPriorityIcon(sub.priority || 'low')}
+                                    </SubTaskPriority>
+                                </SubTaskRow>
+                                {sub.description && <SubTaskDesc>{sub.description}</SubTaskDesc>}
                             </SubTaskItem>
                         ))}
                         {onAddSubTask && (
@@ -406,49 +489,22 @@ export function KanbanCard({
                     <MobileActionBtn onClick={() => handleMobileStatusChange('pending')}>Undo</MobileActionBtn>
                 )}
                 {allGroups.length > 1 && (
-                    <div style={{ position: 'relative' }}>
+                    <MoveMenuWrapper>
                         <MobileActionBtn onClick={() => setShowMoveMenu(!showMoveMenu)}>
                             <ArrowRight size={12} /> Move
                         </MobileActionBtn>
                         {showMoveMenu && (
-                            <div
-                                style={{
-                                    position: 'absolute',
-                                    right: 0,
-                                    top: '100%',
-                                    backgroundColor: 'white',
-                                    border: '1px solid #e0e0e0',
-                                    borderRadius: '8px',
-                                    padding: '4px',
-                                    zIndex: 10,
-                                    minWidth: '120px',
-                                    boxShadow: '0 2px 12px rgba(0,0,0,0.1)'
-                                }}
-                            >
+                            <MoveMenuDropdown>
                                 {allGroups
                                     .filter(g => g.id !== item.todo_group_id)
                                     .map(g => (
-                                        <button
-                                            key={g.id}
-                                            onClick={() => handleMoveToGroup(g.id)}
-                                            style={{
-                                                display: 'block',
-                                                width: '100%',
-                                                padding: '8px 12px',
-                                                background: 'transparent',
-                                                border: 'none',
-                                                borderRadius: '4px',
-                                                fontSize: '0.85rem',
-                                                textAlign: 'left',
-                                                cursor: 'pointer'
-                                            }}
-                                        >
+                                        <MoveMenuButton key={g.id} onClick={() => handleMoveToGroup(g.id)}>
                                             {g.name}
-                                        </button>
+                                        </MoveMenuButton>
                                     ))}
-                            </div>
+                            </MoveMenuDropdown>
                         )}
-                    </div>
+                    </MoveMenuWrapper>
                 )}
             </MobileActions>
         </CardContainer>

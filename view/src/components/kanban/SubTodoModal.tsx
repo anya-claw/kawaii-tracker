@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import styled from '@emotion/styled'
 import { Modal } from '../shared/Modal'
 import { FormGroup, ButtonGroup, Button } from '../shared/Form'
 import { KanbanAPI } from '../../shared/api'
@@ -10,6 +11,35 @@ interface Props {
     parentItem: TodoItem | null
     onCreated: (todo: TodoItem) => void
 }
+
+const ParentTaskCard = styled.div`
+    margin-bottom: ${({ theme }) => theme.spacing(2)};
+    padding: ${({ theme }) => theme.spacing(1.5)} ${({ theme }) => theme.spacing(2)};
+    border-radius: ${({ theme }) => theme.borderRadius.medium};
+    border: 1px solid ${({ theme }) => theme.colors.border};
+    background-color: ${({ theme }) => theme.colors.surface};
+`
+
+const ParentLabel = styled.div`
+    font-size: 0.75rem;
+    color: ${({ theme }) => theme.colors.textMuted};
+    margin-bottom: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+`
+
+const ParentTitle = styled.div`
+    font-weight: 700;
+    color: ${({ theme }) => theme.colors.text};
+    font-size: 0.95rem;
+`
+
+const ParentDescription = styled.div`
+    font-size: 0.8rem;
+    color: ${({ theme }) => theme.colors.textMuted};
+    margin-top: ${({ theme }) => theme.spacing(0.5)};
+`
 
 export function SubTodoModal({ isOpen, onClose, parentItem, onCreated }: Props) {
     const [title, setTitle] = useState('')
@@ -53,23 +83,12 @@ export function SubTodoModal({ isOpen, onClose, parentItem, onCreated }: Props) 
     if (!parentItem) return null
 
     return (
-        <Modal isOpen={isOpen} onClose={handleClose} title={`Add Subtask`}>
-            <div
-                style={{
-                    marginBottom: '16px',
-                    padding: '12px',
-                    borderRadius: '12px',
-                    backgroundColor: 'var(--surfaceAlt)'
-                }}
-            >
-                <div style={{ fontSize: '0.85rem', color: 'var(--textMuted)', marginBottom: '4px' }}>Parent Task</div>
-                <div style={{ fontWeight: 600, color: 'var(--text)' }}>{parentItem.title}</div>
-                {parentItem.description && (
-                    <div style={{ fontSize: '0.9rem', color: 'var(--textMuted)', marginTop: '4px' }}>
-                        {parentItem.description}
-                    </div>
-                )}
-            </div>
+        <Modal isOpen={isOpen} onClose={handleClose} title="Add Subtask">
+            <ParentTaskCard>
+                <ParentLabel>Parent Task</ParentLabel>
+                <ParentTitle>{parentItem.title}</ParentTitle>
+                {parentItem.description && <ParentDescription>{parentItem.description}</ParentDescription>}
+            </ParentTaskCard>
 
             <form onSubmit={handleSubmit}>
                 <FormGroup>

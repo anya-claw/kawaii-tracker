@@ -59,8 +59,20 @@ export class TodoRepo {
 
     findAllActive(): TodoItem[] {
         return db
+            .prepare(
+                `SELECT * FROM todo_items WHERE deleted_at IS NULL AND archived_at IS NULL ORDER BY order_index ASC`
+            )
+            .all() as TodoItem[]
+    }
+
+    findAllNonDeleted(): TodoItem[] {
+        return db
             .prepare(`SELECT * FROM todo_items WHERE deleted_at IS NULL ORDER BY order_index ASC`)
             .all() as TodoItem[]
+    }
+
+    findAllIncludingDeleted(): TodoItem[] {
+        return db.prepare(`SELECT * FROM todo_items ORDER BY updated_at DESC`).all() as TodoItem[]
     }
 
     update(id: number, data: Partial<TodoItem>): void {
@@ -101,6 +113,20 @@ export class TodoRepo {
             now,
             id
         )
+    }
+
+    archive(id: number): void {
+        const now = formatIso()
+        db.prepare(
+            'UPDATE todo_items SET archived_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL AND archived_at IS NULL'
+        ).run(now, now, id)
+    }
+
+    unarchive(id: number): void {
+        const now = formatIso()
+        db.prepare(
+            'UPDATE todo_items SET archived_at = NULL, updated_at = ? WHERE id = ? AND archived_at IS NOT NULL'
+        ).run(now, id)
     }
 }
 

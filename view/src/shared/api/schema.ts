@@ -24,6 +24,7 @@ export interface TodoGroup {
     order_index: number
     created_at: string
     updated_at: string
+    archived_at?: string | null
 }
 
 export interface TodoItem {
@@ -38,6 +39,8 @@ export interface TodoItem {
     order_index: number
     created_at: string
     updated_at: string
+    deleted_at?: string | null
+    archived_at?: string | null
 }
 
 export interface GroupWithItems {

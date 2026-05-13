@@ -5,7 +5,7 @@ import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-
 import { CSS } from '@dnd-kit/utilities'
 import { KanbanCard } from './KanbanCard'
 import { useDroppable } from '@dnd-kit/core'
-import { Plus, GripHorizontal, ChevronDown, ChevronRight, Trash2 } from 'lucide-react'
+import { Plus, GripHorizontal, ChevronDown, ChevronRight, Trash2, Archive } from 'lucide-react'
 
 const ColumnWrapper = styled.div<{ isDragging: boolean }>`
     opacity: ${({ isDragging }) => (isDragging ? 0.5 : 1)};
@@ -14,8 +14,9 @@ const ColumnWrapper = styled.div<{ isDragging: boolean }>`
 const ColumnContainer = styled.div`
     background-color: ${({ theme }) => theme.colors.background};
     border-radius: ${({ theme }) => theme.borderRadius.medium};
-    width: 300px;
+    width: 500px;
     min-width: 300px;
+    max-width: 500px;
     display: flex;
     flex-direction: column;
     box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
@@ -25,6 +26,7 @@ const ColumnContainer = styled.div`
     @media (max-width: 768px) {
         width: 100%;
         min-width: unset;
+        max-width: unset;
         border-radius: ${({ theme }) => theme.borderRadius.small};
     }
 `
@@ -146,6 +148,7 @@ interface Props {
     onStatusChange?: (id: number, status: 'pending' | 'doing' | 'done') => void
     onMoveToGroup?: (todoId: number, groupId: number) => void
     onDeleteGroup?: (groupId: number) => void
+    onArchiveGroup?: (groupId: number) => void
 }
 
 export function KanbanColumn({
@@ -156,7 +159,8 @@ export function KanbanColumn({
     onAddSubTask,
     onStatusChange,
     onMoveToGroup,
-    onDeleteGroup
+    onDeleteGroup,
+    onArchiveGroup
 }: Props) {
     const [showCompleted, setShowCompleted] = useState(false)
     const {
@@ -212,6 +216,22 @@ export function KanbanColumn({
                         >
                             <Plus size={16} />
                         </button>
+                        {onArchiveGroup && (
+                            <button
+                                style={{
+                                    marginLeft: 4,
+                                    color: '#f59e0b'
+                                }}
+                                onClick={e => {
+                                    e.stopPropagation()
+                                    if (confirm('Archive this board and all its tasks?')) {
+                                        onArchiveGroup(group.group.id)
+                                    }
+                                }}
+                            >
+                                <Archive size={16} />
+                            </button>
+                        )}
                         {onDeleteGroup && (
                             <button
                                 style={{

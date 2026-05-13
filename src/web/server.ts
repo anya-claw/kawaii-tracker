@@ -255,6 +255,55 @@ async function main() {
         }
     })
 
+    app.post('/api/todos/:id/archive', async req => {
+        try {
+            const { id } = req.params as { id: string }
+            todoService.archiveTodo(Number(id))
+            return { ok: true }
+        } catch (e: any) {
+            return { ok: false, error: e.message }
+        }
+    })
+
+    app.post('/api/todos/:id/unarchive', async req => {
+        try {
+            const { id } = req.params as { id: string }
+            todoService.unarchiveTodo(Number(id))
+            return { ok: true }
+        } catch (e: any) {
+            return { ok: false, error: e.message }
+        }
+    })
+
+    app.post('/api/groups/:id/archive', async req => {
+        try {
+            const { id } = req.params as { id: string }
+            todoService.archiveGroup(Number(id))
+            return { ok: true }
+        } catch (e: any) {
+            return { ok: false, error: e.message }
+        }
+    })
+
+    app.post('/api/groups/:id/unarchive', async req => {
+        try {
+            const { id } = req.params as { id: string }
+            todoService.unarchiveGroup(Number(id))
+            return { ok: true }
+        } catch (e: any) {
+            return { ok: false, error: e.message }
+        }
+    })
+
+    app.get('/api/todos/history', async () => {
+        try {
+            const history = todoService.listHistory()
+            return { ok: true, data: history }
+        } catch (e: any) {
+            return { ok: false, error: e.message }
+        }
+    })
+
     // ==================== DASHBOARD ====================
 
     app.get('/api/dashboard', async () => {
