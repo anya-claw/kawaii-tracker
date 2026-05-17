@@ -59,6 +59,22 @@ export class EventRepo {
     }
 
     /**
+     * Finds the latest recurring event (regardless of completion) for a tag since a given start time.
+     * Used to check if the current cycle already has a completed placeholder.
+     */
+    findLatestRecurringEventSince(tagId: number, since: string): TrackerEvent | undefined {
+        return db
+            .prepare(
+                `
+      SELECT * FROM tracker_events 
+      WHERE tag_id = ? AND recurring_mark = 1 AND deleted_at IS NULL AND created_at >= ?
+      ORDER BY created_at DESC LIMIT 1
+    `
+            )
+            .get(tagId, since) as TrackerEvent | undefined
+    }
+
+    /**
      * Counts the number of active sub events for a specific parent.
      */
     countSubEventsByParent(parentId: number): number {

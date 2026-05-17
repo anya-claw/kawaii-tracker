@@ -1,7 +1,27 @@
 import { tagRepo } from '../repo/tag.repo'
 import { eventRepo } from '../repo/event.repo'
 import { CreateEventDTO, UpdateEventDTO, QueryDTO, TrackerEvent } from '../types'
-import { parseRange, parseTimeString, formatIso, getBusinessDayStart } from '../util/time'
+import { parseRange, parseTimeString, formatIso, getBusinessDayStart, getBusinessWeekStart, getBusinessDate, getOffsetHours } from '../util/time'
+import { addHours, startOfMonth } from 'date-fns'
+
+/**
+ * Returns the ISO start time of the current cycle for a given recurring type.
+ */
+function getCurrentCycleStart(recurringType: string): string {
+    const now = new Date()
+    switch (recurringType) {
+        case 'daily':
+            return formatIso(getBusinessDayStart(now))
+        case 'weekly':
+            return formatIso(getBusinessWeekStart(now))
+        case 'monthly': {
+            const bizDate = getBusinessDate(now)
+            return formatIso(addHours(startOfMonth(bizDate), getOffsetHours()))
+        }
+        default:
+            return formatIso(getBusinessDayStart(now))
+    }
+}
 
 export class EventService {
     /**
@@ -25,6 +45,23 @@ export class EventService {
             if (targetCount > 1) {
                 // Multi-target: maintain main -> sub-event chain
                 if (!mainEvent) {
+                    // Check if current cycle already has a completed placeholder
+                    const cycleStart = getCurrentCycleStart(recurringType)
+                    const existingCycle = eventRepo.findLatestRecurringEventSince(tag.id, cycleStart)
+                    
+                    if (existingCycle && existingCycle.completed_at) {
+                        // Current cycle already completed → create standalone event, no new placeholder
+                        return eventRepo.create({
+                            tag_id: tag.id,
+                            parent_id: null,
+                            completed_at: now,
+                            recurring_mark: 0,
+                            details: dto.details,
+                            mood: dto.mood
+                        })
+                    }
+                    
+                    // No completed cycle in current period → create new placeholder
                     mainEvent = eventRepo.create({
                         tag_id: tag.id,
                         parent_id: null,
@@ -58,11 +95,27 @@ export class EventService {
                     })
                     return eventRepo.findById(mainEvent.id)!
                 } else {
+                    // Check if current cycle already completed
+                    const cycleStart = getCurrentCycleStart(recurringType)
+                    const existingCycle = eventRepo.findLatestRecurringEventSince(tag.id, cycleStart)
+                    
+                    if (existingCycle && existingCycle.completed_at) {
+                        // Current cycle already completed → standalone event
+                        return eventRepo.create({
+                            tag_id: tag.id,
+                            parent_id: null,
+                            completed_at: now,
+                            recurring_mark: 0,
+                            details: dto.details,
+                            mood: dto.mood
+                        })
+                    }
+                    
                     return eventRepo.create({
                         tag_id: tag.id,
                         parent_id: null,
                         completed_at: now,
-                        recurring_mark: 1, // Keep as recurring mark since it represents a cycle completion
+                        recurring_mark: 0,
                         details: dto.details,
                         mood: dto.mood
                     })
